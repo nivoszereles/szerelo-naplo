@@ -763,7 +763,7 @@ function renderEntry(){
     '<button type="button" class="day-type-btn" data-daytype="sick">Betegállomány</button>' +
     '</div></div>' +
     '<div id="work-fields">' +
-    '<div class="field"><label>Munka / rendelés azonosító (opcionális)</label><input type="text" id="f-order" placeholder="pl. 1060/26" value="'+escapeHtml(existing.orderRef||"")+'"></div>' +
+    '<div class="field"><label>Munka / rendelés azonosító '+(person.trade==="kerites" ? '(kötelezően kitöltendő) <span style="color:var(--flag)">*</span>' : '(opcionális)')+'</label><input type="text" id="f-order" placeholder="pl. 1060/26" value="'+escapeHtml(existing.orderRef||"")+'"></div>' +
     timeFields +
     (itemsLabel ? '<label>'+itemsLabel+'</label>' : '') + counters +
     extraFields +
@@ -835,6 +835,8 @@ function renderEntry(){
     if (entryLocked){ toast("Ez a hónap le van zárva."); return; }
     if (!nav.adminAuthed && d < minDateStr){ toast("Ez a nap már egy korábbi hónapban van — szólj az adminnak, ha módosítani szeretnél rajta."); return; }
     if (person.trade==="kerites" && dayType==="work"){
+      var orderRefVal = (document.getElementById("f-order")||{}).value || "";
+      if (!orderRefVal.trim()){ toast("Add meg a munka/rendelés azonosítót."); return; }
       var ws = (document.getElementById("f-work-start")||{}).value;
       var we = (document.getElementById("f-work-end")||{}).value;
       if (!ws || !we){ toast("Add meg a munkakezdés és munkavég időpontját."); return; }
