@@ -183,6 +183,8 @@ var APP_CSS = [
 ".toast{position:fixed;left:50%;bottom:1.3rem;transform:translateX(-50%);background:var(--ink);color:#fff;padding:.7rem 1.1rem;border-radius:10px;font-size:.9rem;box-shadow:var(--shadow);z-index:50;max-width:90vw;text-align:center;}",
 ":root[data-theme='dark'] .toast, :root:not([data-theme='light']) .toast{background:#000;}",
 "@media (prefers-color-scheme: light){.toast{background:var(--ink);}}",
+"@keyframes field-flash{0%{background:var(--accent);box-shadow:0 0 0 4px var(--accent);}100%{background:var(--surface-2);box-shadow:0 0 0 0 transparent;}}",
+".field-flash{animation:field-flash 1.1s ease-out;border-radius:10px;}",
 ".pin-wrap{max-width:320px;margin:3rem auto 0;text-align:center;}",
 ".pin-wrap input{text-align:center;font-size:1.6rem;letter-spacing:.4em;font-family:'JetBrains Mono',monospace;}",
 ".matrix-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface);}",
@@ -735,7 +737,7 @@ function renderEntry(){
   setRoot(
     headerHtml(person.name, "names") +
     '<main><div class="card">' +
-    '<div class="field"><label>Dátum</label><input type="date" id="f-date" value="'+date+'" min="'+minDateStr+'" max="'+todayStr()+'"></div>' +
+    '<div class="field" id="f-date-field"><label>Dátum</label><input type="date" id="f-date" value="'+date+'" min="'+minDateStr+'" max="'+todayStr()+'"></div>' +
     (locked ? '<p class="pill warn">Ez a hónap már le van zárva — csak admin tud módosítani.</p>' : '') +
     '<div class="field"><label>Nap típusa</label><div class="day-type-group">' +
     '<button type="button" class="day-type-btn" data-daytype="work">Dolgozott</button>' +
@@ -794,7 +796,17 @@ function renderEntry(){
   });
 
   document.querySelectorAll("[data-edit]").forEach(function(el){
-    el.onclick = function(){ nav.editDate = el.getAttribute("data-edit"); render(); };
+    el.onclick = function(){
+      nav.editDate = el.getAttribute("data-edit");
+      render();
+      window.scrollTo({ top:0, behavior:"smooth" });
+      var dateField = document.getElementById("f-date-field");
+      if (dateField){
+        dateField.classList.remove("field-flash");
+        void dateField.offsetWidth;
+        dateField.classList.add("field-flash");
+      }
+    };
   });
 
   document.getElementById("f-date").onchange = function(){ nav.editDate = this.value; render(); };
