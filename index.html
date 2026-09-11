@@ -409,6 +409,16 @@ function monthExtrasTotal(personId, month){
   return STATE.extras.filter(function(x){ return x.personId===personId && x.month===month; })
     .reduce(function(s,x){ return s + (x.amount||0); }, 0);
 }
+var ATTENDANCE_BONUS_AMOUNT = 33250;
+function monthAttendanceBonusEligible(personId, month){
+  var entries = monthEntries(personId, month);
+  var vd = entries.filter(function(e){ return e.dayType==="vacation"; }).length;
+  var sd = entries.filter(function(e){ return e.dayType==="sick"; }).length;
+  return vd <= 5 && sd === 0;
+}
+function monthAttendanceBonus(personId, month){
+  return monthAttendanceBonusEligible(personId, month) ? ATTENDANCE_BONUS_AMOUNT : 0;
+}
 
 /* ---------- MENTÉS / BETÖLTÉS (Supabase) ---------- */
 function sb(path, opts){
@@ -696,11 +706,15 @@ function renderEntry(){
   if (person.trade === "kerites"){
     curMonthEntries.forEach(function(e){ if (e.dayType==="work") curMonthTopUp += keritesHourBreakdown(e).topUp; });
   }
-  var curMonthTotal = monthPieceTotal(person.id, curMonth) + monthExtrasTotal(person.id, curMonth);
+  var curMonthBonusEligible = monthAttendanceBonusEligible(person.id, curMonth);
+  var curMonthTotal = monthPieceTotal(person.id, curMonth) + monthExtrasTotal(person.id, curMonth) + (curMonthBonusEligible ? ATTENDANCE_BONUS_AMOUNT : 0);
   var monthSummaryHtml = '<div class="section-title"><h2>Ebben a hónapban</h2></div><div class="card">' +
     '<span class="l" style="color:var(--ink-muted);font-size:.76rem;text-transform:uppercase;letter-spacing:.03em">Kereseted eddig ('+curMonth+')</span>' +
     '<div class="mono" style="font-size:1.7rem;font-weight:700;margin:.2rem 0 .6rem">'+fmtFt(curMonthTotal)+'</div>' +
     '<p class="muted">'+curMonthWd+' munkanap · '+curMonthVd+' szabadság · '+curMonthSd+' beteg'+(curMonthTopUp>0.001?' · '+curMonthTopUp.toFixed(1)+' óra pótlás':'')+'</p>' +
+    (curMonthBonusEligible
+      ? '<p style="color:var(--ok);font-weight:600;margin-top:.4rem">✓ Jár még a jelenléti bónusz: '+fmtFt(ATTENDANCE_BONUS_AMOUNT)+'</p>'
+      : '<p style="color:var(--warn);font-weight:600;margin-top:.4rem">✗ A jelenléti bónusz már nem jár ebben a hónapban</p>') +
     '</div>';
 
   var catalog = STATE.catalog[person.trade];
@@ -1176,7 +1190,8 @@ function buildPayrollTab(people, trade, month){
         if (e.dayType==="work") topUpHours += keritesHourBreakdown(e).topUp;
       });
     }
-    grand += piece + extrasTotal;
+    var bonus = monthAttendanceBonus(p.id, month);
+    grand += piece + extrasTotal + bonus;
     return '<tr><td><strong>'+escapeHtml(p.name)+'</strong><div class="muted" style="font-size:.76rem">'+wd+' munkanap · '+vd+' szabadság · '+sd+' beteg'+(topUpHours>0.001?' · '+topUpHours.toFixed(1)+' óra pótlás':'')+'</div></td>' +
       '<td class="mono">'+fmtFt(piece)+'</td>' +
       '<td><div class="extras-list" data-person="'+p.id+'">' +
@@ -1187,14 +1202,15 @@ function buildPayrollTab(people, trade, month){
         }).join("") +
         '<button class="small-btn" data-extra-add="'+p.id+'">+ Tétel</button>' +
       '</div></td>' +
-      '<td class="mono"><strong>'+fmtFt(piece+extrasTotal)+'</strong></td>' +
+      '<td class="mono"'+(bonus>0?' style="color:var(--ok)"':' style="color:var(--ink-muted)"')+'>'+(bonus>0?fmtFt(bonus):"—")+'</td>' +
+      '<td class="mono"><strong>'+fmtFt(piece+extrasTotal+bonus)+'</strong></td>' +
       '</tr>';
   }).join("");
   return '<h1 class="admin-h1">Bérszámítás — '+month+'</h1>' +
     '<div class="stat-row"><div class="stat-tile"><span class="n mono">'+fmtFt(grand)+'</span><span class="l">Havi összesen ('+(trade==="ajto"?"ajtó":"kerítés")+')</span></div></div>' +
-    '<div class="matrix-scroll"><table class="summary-table"><thead><tr><th>Szerelő</th><th>Teljesítmény</th><th>Extra tételek</th><th>Végösszeg</th></tr></thead>' +
+    '<div class="matrix-scroll"><table class="summary-table"><thead><tr><th>Szerelő</th><th>Teljesítmény</th><th>Extra tételek</th><th>Jelenléti bónusz</th><th>Végösszeg</th></tr></thead>' +
     '<tbody>'+rows+'</tbody>' +
-    '<tfoot><tr><td>Összesen</td><td></td><td></td><td class="mono">'+fmtFt(grand)+'</td></tr></tfoot></table></div>';
+    '<tfoot><tr><td>Összesen</td><td></td><td></td><td></td><td class="mono">'+fmtFt(grand)+'</td></tr></tfoot></table></div>';
 }
 function wirePayrollTab(people, trade, month){
   document.querySelectorAll("[data-extra-add]").forEach(function(btn){
