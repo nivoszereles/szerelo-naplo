@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kezdőképernyő útmutató</title>
+<style>
+:root{
+--bg:#faf8f4;--surface:#ffffff;--surface-2:#f3efe7;--ink:#1a1a1a;--ink-muted:#6b6459;
+--line:#e7e0d3;--accent:#ffb00b;--accent-ink:#1a1a1a;--shadow:0 1px 2px rgba(26,22,15,.06),0 10px 26px rgba(26,22,15,.08);
+--phone-bg:#ffffff;--phone-frame:#1a1a1a;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme='light']){
+--bg:#141311;--surface:#1d1c19;--surface-2:#26241f;--ink:#f2efe9;--ink-muted:#a89f8f;
+--line:#39362e;--accent:#ffb00b;--accent-ink:#1a1a1a;--shadow:0 1px 2px rgba(0,0,0,.4),0 12px 28px rgba(0,0,0,.4);
+--phone-bg:#232220;--phone-frame:#000;
+}}
+:root[data-theme='dark']{
+--bg:#141311;--surface:#1d1c19;--surface-2:#26241f;--ink:#f2efe9;--ink-muted:#a89f8f;
+--line:#39362e;--accent:#ffb00b;--accent-ink:#1a1a1a;--shadow:0 1px 2px rgba(0,0,0,.4),0 12px 28px rgba(0,0,0,.4);
+--phone-bg:#232220;--phone-frame:#000;
+}
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap');
+*,*::before,*::after{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Public Sans',system-ui,sans-serif;line-height:1.5;}
+h1,h2,.brand{font-family:'Poppins',system-ui,sans-serif;}
+.header{background:var(--ink);color:#fff;padding:1.3rem 1.4rem;display:flex;align-items:center;gap:.6rem;}
+@media (prefers-color-scheme: dark){:root:not([data-theme='light']) .header{background:#0d0c0b;}}
+:root[data-theme='dark'] .header{background:#0d0c0b;}
+.brand{font-weight:700;font-size:1.1rem;display:flex;align-items:center;gap:.5rem;}
+.brand .dot{width:.5rem;height:.5rem;border-radius:50%;background:var(--accent);}
+main{max-width:520px;margin:0 auto;padding:1.6rem 1.2rem 3rem;}
+.lead{color:var(--ink-muted);font-size:1rem;margin-bottom:1.8rem;}
+.steps{display:flex;flex-direction:column;gap:1.8rem;}
+.step{display:flex;flex-direction:column;gap:.8rem;align-items:center;text-align:center;}
+.step .num{width:2.2rem;height:2.2rem;border-radius:50%;background:var(--surface);border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;font-family:'Poppins';font-weight:700;font-size:1.05rem;flex-shrink:0;}
+.step h2{font-size:1.05rem;margin:0;}
+.step p{margin:0;color:var(--ink-muted);font-size:.9rem;max-width:34ch;}
+.phone{width:220px;}
+.phone .frame{background:var(--phone-frame);border-radius:26px;padding:8px;box-shadow:var(--shadow);}
+.phone .screen{background:var(--phone-bg);border-radius:18px;padding:12px 10px;min-height:260px;display:flex;flex-direction:column;gap:.4rem;font-size:.6rem;position:relative;}
+.chatbar{background:#6c5ce7;color:#fff;border-radius:10px;padding:.5rem .6rem;font-weight:700;font-size:.68rem;display:flex;align-items:center;justify-content:space-between;}
+.bubble{background:var(--surface-2);border-radius:10px;padding:.5rem .6rem;font-size:.62rem;align-self:flex-start;max-width:80%;}
+.bubble.link{color:#3a6fd8;text-decoration:underline;}
+.menu-dots{position:absolute;top:10px;right:10px;font-weight:900;color:var(--ink-muted);font-size:.9rem;}
+.menu-pop{position:absolute;top:26px;right:8px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);font-size:.6rem;overflow:hidden;min-width:110px;}
+.menu-pop div{padding:.4rem .55rem;border-bottom:1px solid var(--line);}
+.menu-pop div:last-child{border-bottom:none;}
+.menu-pop div.hl{background:var(--accent);color:var(--accent-ink);font-weight:700;}
+.browserbar{background:var(--surface-2);border-radius:8px;padding:.4rem .5rem;font-size:.6rem;color:var(--ink-muted);display:flex;align-items:center;gap:.3rem;}
+.nivopage{background:var(--ink);border-radius:8px;padding:.5rem;flex:1;display:flex;flex-direction:column;gap:.4rem;}
+.nivopage .top{color:var(--accent);font-weight:700;font-size:.62rem;display:flex;align-items:center;gap:.3rem;}
+.nivopage .dot{width:.3rem;height:.3rem;border-radius:50%;background:var(--accent);}
+.nivopage .body{background:#242220;border-radius:6px;flex:1;}
+.addbar{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:.5rem;text-align:center;font-size:.62rem;font-weight:700;}
+.homegrid{display:grid;grid-template-columns:repeat(4,1fr);gap:.45rem;padding-top:.2rem;}
+.homegrid .icon{aspect-ratio:1;border-radius:11px;background:var(--surface);border:1px solid var(--line);}
+.homegrid .icon.nivo{background:var(--ink);display:flex;align-items:center;justify-content:center;color:var(--accent);font-weight:800;font-size:1rem;font-family:'Poppins';}
+.homegrid .lbl{grid-column:1/-1;text-align:center;font-size:.5rem;color:var(--ink-muted);margin-top:-.2rem;}
+.divider{border:none;border-top:1px solid var(--line);width:100%;margin:.2rem 0;}
+footer{text-align:center;color:var(--ink-muted);font-size:.78rem;padding:2rem 0;}
+</style>
+</head>
+<body>
+<div class="header"><span class="brand"><span class="dot"></span>NIVO</span></div>
+<main>
+<h1 style="font-size:1.3rem;margin-bottom:.4rem">Ikon a kezdőképernyőre</h1>
+<p class="lead">A Viberben megnyitott link nem tudja felajánlani a kezdőképernyő-ikont — ehhez 2 gyors lépés kell.</p>
+
+<div class="steps">
+
+<div class="step">
+  <div class="num">1</div>
+  <h2>Viberben nyisd meg a linket, majd koppints a "⋮" menüre</h2>
+  <p>Válaszd: <strong>"Megnyitás böngészőben"</strong> (vagy "Open in browser").</p>
+  <div class="phone"><div class="frame"><div class="screen">
+    <div class="chatbar">Viber <span class="menu-dots">⋮</span></div>
+    <div class="bubble">Itt tudod rögzíteni a napi munkát:</div>
+    <div class="bubble link">friendly-arithmetic-0cd304.netlify.app</div>
+    <div class="menu-pop">
+      <div>Megosztás</div>
+      <div class="hl">Megnyitás böngészőben ←</div>
+      <div>Másolás</div>
+    </div>
+  </div></div></div>
+</div>
+
+<hr class="divider">
+
+<div class="step">
+  <div class="num">2</div>
+  <h2>A böngészőben (Chrome) koppints a "⋮" menüre</h2>
+  <p>Válaszd: <strong>"Hozzáadás a kezdőképernyőhöz"</strong>.</p>
+  <div class="phone"><div class="frame"><div class="screen">
+    <div class="browserbar">🔒 friendly-arithmetic-0cd304.netlify.app <span class="menu-dots" style="position:static;margin-left:auto">⋮</span></div>
+    <div class="nivopage">
+      <div class="top"><span class="dot"></span>NIVO</div>
+      <div class="body"></div>
+    </div>
+    <div class="menu-pop" style="top:36px">
+      <div>Új lap</div>
+      <div>Könyvjelző</div>
+      <div class="hl">Hozzáadás a kezdőképernyőhöz ←</div>
+    </div>
+  </div></div></div>
+</div>
+
+<hr class="divider">
+
+<div class="step">
+  <div class="num">3</div>
+  <h2>Erősítsd meg a nevet, majd "Hozzáadás"</h2>
+  <p>Kész! Az ikon megjelenik a kezdőképernyőn — mostantól egy koppintással nyílik, mint egy alkalmazás.</p>
+  <div class="phone"><div class="frame"><div class="screen">
+    <div class="homegrid">
+      <div class="icon"></div><div class="icon"></div><div class="icon nivo">N</div><div class="icon"></div>
+      <div class="lbl">Szerelő Napló</div>
+    </div>
+  </div></div></div>
+</div>
+
+</div>
+</main>
+<footer>NIVO — Szerelő napló</footer>
+</body>
+</html>

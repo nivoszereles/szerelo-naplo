@@ -1,0 +1,1447 @@
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#1a1a1a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Szerelő Napló">
+<title>Szerelő Napló</title>
+<style id="app-style"></style>
+<div id="root"></div>
+<script type="application/json" id="app-state">
+{
+  "adminPin": "1234",
+  "dailyPay": {
+    "vacation": { "vezeto": 20000, "seged": 18000 },
+    "sick": { "vezeto": 0, "seged": 0 }
+  },
+  "people": [
+    { "id": "takacs-attila", "name": "Takács Attila", "trade": "ajto", "role": "Vezető szerelő", "active": true,
+      "travelFeePerDay": 9000,
+      "prices": { "std_teli": 3182.4, "std_uveges": 4161.6, "std_ketszarny": 5385.6, "extra_teli": 3672, "extra_uveges": 4732.8, "lemezajto": 2284.8, "garancia": 0, "szogvas": 285.6, "panel": 897.6, "teglatarsas": 1142.4, "berhaz": 1632, "csaladi_natur": 0, "csaladi_bontos": 979.2, "bevilagito1": 816, "bevilagito2": 1550.4, "bevilagito3": 2366.4, "villanyora": 1632, "fem_takaro": 1500, "racs_bontas": 448.8, "femtok_bontas": 448.8, "videk": 4080 } },
+    { "id": "baranyi-feri", "name": "Baranyi Feri", "trade": "ajto", "role": "Segéd szerelő", "active": true,
+      "travelFeePerDay": 8100,
+      "prices": { "std_teli": 2720.094, "std_uveges": 3557.046, "std_ketszarny": 4603.236, "extra_teli": 3138.57, "extra_uveges": 4045.268, "lemezajto": 1952.888, "garancia": 0, "szogvas": 244.111, "panel": 767.206, "teglatarsas": 976.444, "berhaz": 1394.92, "csaladi_natur": 0, "csaladi_bontos": 836.952, "bevilagito1": 697.46, "bevilagito2": 1325.174, "bevilagito3": 2022.634, "villanyora": 1394.92, "fem_takaro": 1290, "racs_bontas": 383.603, "femtok_bontas": 383.603, "videk": 3487.3 } },
+    { "id": "tari-istvan", "name": "Tari István", "trade": "kerites", "role": "Csapatvezető", "active": true, "hourlyRate": 2550 },
+    { "id": "pribeli-zsolt", "name": "Pribéli Zsolt", "trade": "kerites", "role": "Csapatvezető", "active": true, "hourlyRate": 2200 }
+  ],
+  "catalog": {
+    "ajto": {
+      "assemblyHourlyRate": 2700,
+      "items": [
+        { "key": "std_teli", "label": "Standard teli", "group": "ajto" },
+        { "key": "std_uveges", "label": "Standard üveges", "group": "ajto" },
+        { "key": "std_ketszarny", "label": "Standard kétszárny", "group": "ajto" },
+        { "key": "extra_teli", "label": "Plus/extra teli", "group": "ajto" },
+        { "key": "extra_uveges", "label": "Plus/extra üveges", "group": "ajto" },
+        { "key": "lemezajto", "label": "Lemezajtó", "group": "ajto" },
+        { "key": "panel", "label": "Panel", "group": "epulet" },
+        { "key": "teglatarsas", "label": "Téglatársas / Csúsztatott zsalus", "group": "epulet" },
+        { "key": "berhaz", "label": "Bérház", "group": "epulet" },
+        { "key": "csaladi_natur", "label": "Natúr nyílás", "group": "epulet" },
+        { "key": "csaladi_bontos", "label": "Családi bontós", "group": "epulet" },
+        { "key": "garancia", "label": "Egyéb", "group": "kiegeszito" },
+        { "key": "szogvas", "label": "Szögvas", "group": "kiegeszito" },
+        { "key": "bevilagito1", "label": "Bevilágító 1db", "group": "kiegeszito" },
+        { "key": "bevilagito2", "label": "Bevilágító 2db", "group": "kiegeszito" },
+        { "key": "bevilagito3", "label": "Bevilágító 3db", "group": "kiegeszito" },
+        { "key": "villanyora", "label": "Villanyóra kisajtó", "group": "kiegeszito" },
+        { "key": "fem_takaro", "label": "Sikeres fém takaró felrakás", "group": "kiegeszito" },
+        { "key": "racs_bontas", "label": "Rács bontás", "group": "kiegeszito" },
+        { "key": "femtok_bontas", "label": "Fémtok bontás", "group": "kiegeszito" },
+        { "key": "videk", "label": "Vidék 100km+", "group": "kiegeszito" }
+      ]
+    },
+    "kerites": {
+      "fixedDailyHours": { "utazas": 2, "jarulekos": 1.5 },
+      "items": [
+        { "key": "kiskapu", "label": "Kiskapu", "hoursPerUnit": 2.16 },
+        { "key": "ketszarnyu", "label": "Kétszárnyú", "hoursPerUnit": 3.5 },
+        { "key": "ketszarnyu4m", "label": "Kétszárnyú 4m felett", "hoursPerUnit": 5 },
+        { "key": "gurulo1", "label": "Guruló 1 keret", "hoursPerUnit": 3.5 },
+        { "key": "gurulo2", "label": "Guruló 2 keret", "hoursPerUnit": 4.33 },
+        { "key": "uszo1", "label": "Úszó 1 keret", "hoursPerUnit": 5.33 },
+        { "key": "uszo2", "label": "Úszó 2 keret", "hoursPerUnit": 6.66 },
+        { "key": "acel_fuggo", "label": "Acél függő", "hoursPerUnit": 0.035 },
+        { "key": "acel_vizszint", "label": "Acél vízszint", "hoursPerUnit": 0.0423 },
+        { "key": "alu_fuggo", "label": "Alu függő", "hoursPerUnit": 0.07 },
+        { "key": "alu_vizszint", "label": "Alu vízszint", "hoursPerUnit": 0.05 },
+        { "key": "oszlop", "label": "Oszlop", "hoursPerUnit": 0.3 },
+        { "key": "tartokeret", "label": "Tartókeret", "hoursPerUnit": 0.2154 },
+        { "key": "pergola", "label": "Pergola", "hoursPerUnit": 10, "override": true }
+      ]
+    }
+  },
+  "entries": [],
+  "extras": [],
+  "monthLocks": []
+}
+</script>
+<script>
+(function(){
+"use strict";
+
+/* ---------- SZERVER (Supabase) ---------- */
+var SUPABASE_URL = "https://dsplewmrhsqhravvwsrz.supabase.co";
+var SUPABASE_KEY = "sb_publishable_DMQBV_zrCbCXapG1px8Gug_BJw5qETo";
+
+/* ---------- CSS ---------- */
+var APP_CSS = [
+":root{",
+"--bg:#faf8f4;--surface:#ffffff;--surface-2:#f3efe7;--ink:#1a1a1a;--ink-muted:#6b6459;",
+"--line:#e7e0d3;--accent:#ffb00b;--accent-ink:#1a1a1a;--ok:#3f8f5f;--ok-bg:#e7f4ec;",
+"--warn:#c8501f;--warn-bg:#fbe9e1;--info:#5b7a9e;--info-bg:#e9eff6;--sick:#8654b0;--sick-bg:#f0e7f7;--flag:#c0392b;--flag-bg:#fbe4e1;--shadow:0 1px 2px rgba(26,22,15,.06),0 6px 20px rgba(26,22,15,.06);",
+"}",
+"@media (prefers-color-scheme: dark){:root:not([data-theme='light']){",
+"--bg:#141311;--surface:#1d1c19;--surface-2:#26241f;--ink:#f2efe9;--ink-muted:#a89f8f;",
+"--line:#39362e;--accent:#ffb00b;--accent-ink:#1a1a1a;--ok:#5fbf83;--ok-bg:#1c2c22;",
+"--warn:#ff8a5c;--warn-bg:#33221a;--info:#8ab0d9;--info-bg:#1c2733;--sick:#c19ee0;--sick-bg:#2a2033;--flag:#ff6b6b;--flag-bg:#3a1e1e;--shadow:0 1px 2px rgba(0,0,0,.4),0 6px 24px rgba(0,0,0,.35);",
+"}}",
+":root[data-theme='dark']{",
+"--bg:#141311;--surface:#1d1c19;--surface-2:#26241f;--ink:#f2efe9;--ink-muted:#a89f8f;",
+"--line:#39362e;--accent:#ffb00b;--accent-ink:#1a1a1a;--ok:#5fbf83;--ok-bg:#1c2c22;",
+"--warn:#ff8a5c;--warn-bg:#33221a;--info:#8ab0d9;--info-bg:#1c2733;--sick:#c19ee0;--sick-bg:#2a2033;--flag:#ff6b6b;--flag-bg:#3a1e1e;--shadow:0 1px 2px rgba(0,0,0,.4),0 6px 24px rgba(0,0,0,.35);",
+"}",
+"@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap');",
+"*,*::before,*::after{box-sizing:border-box;}",
+"html,body{margin:0;padding:0;}",
+"body{background:var(--bg);color:var(--ink);font-family:'Public Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}",
+"h1,h2,h3,.brand,.big-btn,button{font-family:'Poppins',system-ui,sans-serif;}",
+".mono,.num{font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums;}",
+"h1,h2,h3{text-wrap:balance;margin:0;}",
+"a{color:inherit;}",
+"#root{min-height:100vh;display:flex;flex-direction:column;}",
+".header{background:var(--ink);color:#fff;display:flex;align-items:center;gap:.75rem;padding:.9rem 1.1rem;position:sticky;top:0;z-index:5;}",
+"@media (prefers-color-scheme: dark){:root:not([data-theme='light']) .header{background:#0d0c0b;}}",
+":root[data-theme='dark'] .header{background:#0d0c0b;}",
+".brand{font-weight:700;letter-spacing:.03em;font-size:1.05rem;display:flex;align-items:center;gap:.4rem;}",
+".brand .dot{width:.5rem;height:.5rem;border-radius:50%;background:var(--accent);}",
+".header .sub{color:#cfc6b3;font-size:.82rem;flex:1;}",
+".back-link{color:#fff;text-decoration:none;font-size:.85rem;opacity:.85;border:1px solid rgba(255,255,255,.25);padding:.35rem .7rem;border-radius:999px;}",
+".back-link:hover{opacity:1;}",
+"main{flex:1;max-width:640px;width:100%;margin:0 auto;padding:1.25rem 1.1rem 3rem;}",
+"main.wide{max-width:1080px;}",
+".stack{display:flex;flex-direction:column;gap:.9rem;}",
+".card{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:1.1rem;}",
+".big-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1.4rem;}",
+"@media (max-width:480px){.big-grid{grid-template-columns:1fr;}}",
+".big-card{background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:2.1rem 1.2rem;text-align:center;cursor:pointer;font-size:1.25rem;font-weight:600;transition:transform .12s ease, border-color .12s ease;}",
+".big-card:hover{transform:translateY(-2px);border-color:var(--accent);}",
+".big-card .ico{font-size:2.4rem;display:block;margin-bottom:.6rem;}",
+".hero{text-align:center;padding:1.4rem 0 .2rem;}",
+".hero p{color:var(--ink-muted);margin:.4rem 0 0;}",
+".name-list{display:flex;flex-direction:column;gap:.65rem;margin-top:1.1rem;}",
+".name-btn{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:1rem 1.1rem;font-size:1.05rem;font-weight:600;text-align:left;cursor:pointer;display:flex;justify-content:space-between;align-items:center;}",
+".name-btn:hover{border-color:var(--accent);}",
+".name-btn .role{color:var(--ink-muted);font-weight:500;font-size:.82rem;font-family:'Public Sans';}",
+"label{display:block;font-size:.82rem;font-weight:600;color:var(--ink-muted);margin-bottom:.3rem;text-transform:uppercase;letter-spacing:.03em;}",
+"input[type=text],input[type=date],input[type=number],textarea,select{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:.6rem .7rem;font-size:1rem;color:var(--ink);font-family:inherit;}",
+"textarea{min-height:4.5rem;resize:vertical;}",
+".field{margin-bottom:.9rem;}",
+".row{display:flex;gap:.7rem;}",
+".row>.field{flex:1;}",
+".switch-row{display:flex;align-items:center;justify-content:space-between;background:var(--surface-2);border-radius:10px;padding:.7rem .9rem;margin-bottom:1rem;}",
+".switch-row strong{font-size:.95rem;}",
+".toggle{position:relative;width:46px;height:26px;background:var(--line);border-radius:999px;cursor:pointer;flex-shrink:0;}",
+".toggle.on{background:var(--accent);}",
+".toggle::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .15s ease;}",
+".toggle.on::after{left:23px;}",
+".day-type-group{display:flex;gap:.5rem;}",
+".day-type-btn{flex:1;padding:.65rem .4rem;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);font-weight:600;font-size:.82rem;cursor:pointer;color:var(--ink-muted);font-family:'Public Sans',sans-serif;}",
+".day-type-btn.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}",
+".counter-list{display:flex;flex-direction:column;gap:.5rem;}",
+".item-group{border:1px solid var(--line);border-radius:12px;padding:.8rem;margin-bottom:.8rem;}",
+".item-group-title{font-weight:700;font-size:.76rem;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);margin-bottom:.6rem;}",
+".counter{display:flex;align-items:center;justify-content:space-between;background:var(--surface-2);border-radius:10px;padding:.6rem .8rem;gap:.6rem;}",
+".counter .lbl{font-size:.92rem;flex:1;}",
+".counter .price{color:var(--ink-muted);font-size:.76rem;display:block;}",
+".stepper{display:flex;align-items:center;gap:.5rem;}",
+".stepper button{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--surface);font-size:1.15rem;font-weight:700;cursor:pointer;color:var(--ink);line-height:1;}",
+".stepper button:active{background:var(--accent);border-color:var(--accent);}",
+".stepper .qty{width:3rem;text-align:center;font-weight:700;font-size:1.05rem;border:1px solid var(--line);border-radius:6px;padding:.3rem 0;background:var(--surface);color:var(--ink);font-family:'JetBrains Mono',ui-monospace,monospace;}",
+".stepper .qty::-webkit-outer-spin-button,.stepper .qty::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}",
+".stepper .qty{-moz-appearance:textfield;}",
+"button.primary{background:var(--accent);color:var(--accent-ink);border:none;border-radius:12px;padding:.95rem 1.2rem;font-weight:700;font-size:1.02rem;cursor:pointer;width:100%;}",
+"button.primary:hover{filter:brightness(0.97);}",
+"button.primary:disabled{opacity:.55;cursor:default;}",
+"button.ghost{background:transparent;border:1px solid var(--line);color:var(--ink);border-radius:12px;padding:.7rem 1rem;font-weight:600;cursor:pointer;}",
+"button.ghost:hover{border-color:var(--accent);}",
+"button.link{background:none;border:none;color:var(--info);font-weight:600;cursor:pointer;padding:0;font-size:.85rem;font-family:inherit;}",
+".small-btn{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:.35rem .6rem;font-size:.78rem;font-weight:600;cursor:pointer;}",
+".small-btn:hover{border-color:var(--accent);}",
+".danger{color:var(--warn);}",
+".pill{display:inline-flex;align-items:center;gap:.3rem;border-radius:999px;padding:.2rem .6rem;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.02em;}",
+".pill.ok{background:var(--ok-bg);color:var(--ok);}",
+".pill.warn{background:var(--warn-bg);color:var(--warn);}",
+".pill.info{background:var(--info-bg);color:var(--info);}",
+".pill.flag{background:var(--flag-bg);color:var(--flag);}",
+".recent-item{display:flex;justify-content:space-between;align-items:center;padding:.55rem 0;border-bottom:1px solid var(--line);font-size:.88rem;}",
+".recent-item:last-child{border-bottom:none;}",
+".toast{position:fixed;left:50%;bottom:1.3rem;transform:translateX(-50%);background:var(--ink);color:#fff;padding:.7rem 1.1rem;border-radius:10px;font-size:.9rem;box-shadow:var(--shadow);z-index:50;max-width:90vw;text-align:center;}",
+":root[data-theme='dark'] .toast, :root:not([data-theme='light']) .toast{background:#000;}",
+"@media (prefers-color-scheme: light){.toast{background:var(--ink);}}",
+".pin-wrap{max-width:320px;margin:3rem auto 0;text-align:center;}",
+".pin-wrap input{text-align:center;font-size:1.6rem;letter-spacing:.4em;font-family:'JetBrains Mono',monospace;}",
+".matrix-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface);}",
+"table{border-collapse:collapse;width:100%;font-size:.86rem;}",
+"table.matrix th,table.matrix td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:.35rem .4rem;text-align:center;min-width:30px;}",
+"table.matrix th.name-col,table.matrix td.name-col{text-align:left;min-width:140px;position:sticky;left:0;background:var(--surface);font-weight:600;}",
+"table.matrix td.wknd{background:var(--surface-2);}",
+"table.matrix td.cell{cursor:pointer;font-size:.95rem;}",
+"table.matrix td.cell:hover{outline:2px solid var(--accent);outline-offset:-2px;}",
+"table.matrix tr.wknd td{background:var(--surface-2);}",
+"table.matrix tr.flagrow td{background:var(--flag-bg);}",
+".pm-table td.name-col,.pm-table th.name-col{min-width:44px;}",
+".pm-table th{white-space:normal;vertical-align:bottom;}",
+".pm-table td{padding:.25rem .3rem;}",
+".pm-table select,.pm-table input[type=number],.pm-table input[type=time]{width:100%;min-width:52px;box-sizing:border-box;border:1px solid var(--line);border-radius:6px;padding:.25rem;font-size:.78rem;font-family:inherit;background:var(--surface);color:var(--ink);}",
+".pm-table input[type=text]{width:100%;min-width:100px;box-sizing:border-box;border:1px solid var(--line);border-radius:6px;padding:.25rem;font-size:.78rem;font-family:inherit;background:var(--surface);color:var(--ink);}",
+".summary-table{width:100%;border-collapse:collapse;font-size:.9rem;}",
+".summary-table th{text-align:left;color:var(--ink-muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.03em;padding:.4rem .5rem;border-bottom:1px solid var(--line);}",
+".summary-table td{padding:.55rem .5rem;border-bottom:1px solid var(--line);vertical-align:top;}",
+".extra-row{display:flex;gap:.4rem;margin-bottom:.35rem;align-items:center;}",
+".extra-row input[type=text]{flex:2;}",
+".extra-row input[type=number]{flex:1;}",
+".section-title{display:flex;align-items:center;justify-content:space-between;margin:1.8rem 0 .7rem;}",
+".section-title h2{font-size:1.05rem;}",
+".modal-bg{position:fixed;inset:0;background:rgba(20,18,14,.55);display:flex;align-items:center;justify-content:center;z-index:40;padding:1rem;}",
+".modal{background:var(--surface);border-radius:14px;padding:1.2rem;max-width:480px;width:100%;max-height:85vh;overflow:auto;box-shadow:var(--shadow);}",
+".badge-stamp{display:inline-block;background:var(--accent);color:var(--accent-ink);font-weight:800;font-size:1.1rem;text-transform:uppercase;letter-spacing:.03em;padding:.55rem 1.1rem;border-radius:10px;transform:rotate(-3deg);box-shadow:0 3px 0 rgba(0,0,0,.18);margin-top:.9rem;}",
+".filters{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem;}",
+".filters select,.filters input{width:auto;}",
+".muted{color:var(--ink-muted);}",
+".people-edit-row{display:grid;grid-template-columns:1.3fr 1fr .8fr .6fr auto;gap:.5rem;align-items:center;margin-bottom:.5rem;}",
+"@media (max-width:600px){.people-edit-row{grid-template-columns:1fr 1fr;}}",
+".foot-admin{text-align:center;padding:1.2rem;color:var(--ink-muted);font-size:.78rem;}",
+":focus-visible{outline:2px solid var(--accent);outline-offset:2px;}",
+".admin-page{flex:1;display:flex;flex-direction:column;}",
+".admin-body{display:flex;flex:1;max-width:1440px;width:100%;margin:0 auto;align-items:flex-start;}",
+".admin-sidebar{width:216px;flex-shrink:0;padding:1.5rem 1rem;position:sticky;top:57px;align-self:flex-start;}",
+".admin-nav-btn{display:flex;align-items:center;gap:.6rem;width:100%;text-align:left;background:none;border:none;border-radius:9px;padding:.65rem .85rem;font-family:'Public Sans',sans-serif;font-weight:600;font-size:.92rem;color:var(--ink-muted);cursor:pointer;margin-bottom:.2rem;}",
+".admin-nav-btn:hover{background:var(--surface-2);color:var(--ink);}",
+".admin-nav-btn.active{background:var(--surface-2);color:var(--ink);box-shadow:inset 3px 0 0 var(--accent);}",
+".admin-content{flex:1;min-width:0;padding:1.5rem 2.2rem 4rem;border-left:1px solid var(--line);}",
+".admin-topbar{display:flex;gap:.7rem;align-items:center;flex-wrap:wrap;margin-bottom:1.6rem;padding-bottom:1.1rem;border-bottom:1px solid var(--line);}",
+".admin-h1{font-size:1.3rem;margin-bottom:.2rem;}",
+".stat-row{display:flex;gap:1rem;margin-bottom:1.3rem;flex-wrap:wrap;}",
+".stat-tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:.9rem 1.2rem;min-width:150px;}",
+".stat-tile .n{font-family:'JetBrains Mono',monospace;font-size:1.4rem;font-weight:600;display:block;}",
+".stat-tile .l{color:var(--ink-muted);font-size:.76rem;text-transform:uppercase;letter-spacing:.03em;}",
+".summary-table tfoot td{border-top:2px solid var(--ink);border-bottom:none;font-weight:700;}",
+".two-col{display:grid;grid-template-columns:1.3fr 1fr;gap:1.6rem;align-items:start;}",
+"@media (max-width:1000px){.admin-body{flex-direction:column;}.admin-sidebar{position:static;width:100%;display:flex;flex-wrap:wrap;padding:.9rem 1.4rem;border-bottom:1px solid var(--line);}.admin-nav-btn{width:auto;}.admin-content{border-left:none;padding:1.4rem;}.two-col{grid-template-columns:1fr;}}"
+].join("\n");
+document.getElementById("app-style").textContent = APP_CSS;
+
+/* ---------- STATE ---------- */
+var STATE = JSON.parse(document.getElementById("app-state").textContent);
+var nav = { view: "landing", trade: null, personId: null, editDate: null,
+  adminAuthed: (sessionStorage.getItem("szn_admin") === "1"),
+  adminTrade: "ajto", adminMonth: monthStr(new Date()), adminTab: "overview", adminPersonId: null };
+
+function applySavedPerson(){
+  if (nav.view !== "landing" && nav.view !== "setpin" && nav.view !== "checkpin") return;
+  try {
+    var savedPerson = localStorage.getItem("szn_person");
+    if (savedPerson) {
+      var p = STATE.people.find(function(x){ return x.id === savedPerson; });
+      if (p) { nav.trade = p.trade; nav.personId = p.id; nav.view = p.pin ? "checkpin" : "setpin"; }
+    }
+  } catch(e){}
+}
+applySavedPerson();
+
+/* ---------- HELPERS ---------- */
+function pad(n){ return n<10 ? "0"+n : ""+n; }
+function todayStr(){ var d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+function monthStr(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1); }
+function daysInMonth(ym){ var parts=ym.split("-"); return new Date(parseInt(parts[0]),parseInt(parts[1]),0).getDate(); }
+function fmtFt(n){ return Math.round(n).toLocaleString("hu-HU")+" Ft"; }
+function fmtDate(iso){ var p=iso.split("-"); return p[2]+"."+p[1]+"."; }
+function fmtDateFull(iso){ var p=iso.split("-"); return p[0]+"."+p[1]+"."+p[2]+"."; }
+function diffDays(a,b){ return Math.round((new Date(a)-new Date(b))/86400000); }
+function weekday(ym,day){ return new Date(parseInt(ym.split("-")[0]),parseInt(ym.split("-")[1])-1,day).getDay(); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function getPerson(id){ return STATE.people.find(function(p){ return p.id===id; }); }
+function isLocked(trade,month){ return STATE.monthLocks.some(function(l){ return l.trade===trade && l.month===month && l.locked; }); }
+function entryFor(personId,date){ return STATE.entries.find(function(e){ return e.personId===personId && e.date===date; }); }
+function escapeHtml(s){ return (s==null?"":String(s)).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+
+var AJTO_GROUP_ORDER = ["ajto","epulet","kiegeszito"];
+var AJTO_GROUP_LABELS = { ajto: "Ajtó típusok", epulet: "Épület típusok", kiegeszito: "Kiegészítők" };
+function groupAjtoItems(items){
+  var buckets = {};
+  items.forEach(function(it){
+    var g = it.group || "kiegeszito";
+    if (!buckets[g]) buckets[g] = [];
+    buckets[g].push(it);
+  });
+  return AJTO_GROUP_ORDER.filter(function(g){ return buckets[g] && buckets[g].length; })
+    .map(function(g){ return { key:g, label:AJTO_GROUP_LABELS[g], items:buckets[g] }; });
+}
+
+function roleKey(role){
+  if (role === "Vezető szerelő") return "vezeto";
+  if (role === "Segéd szerelő") return "seged";
+  return null;
+}
+
+function timeToDecimal(t){
+  if (!t) return null;
+  var parts = t.split(":");
+  if (parts.length<2) return null;
+  var h = parseInt(parts[0],10), m = parseInt(parts[1],10);
+  if (isNaN(h) || isNaN(m)) return null;
+  return h + m/60;
+}
+function workedHoursOf(entry){
+  var s = timeToDecimal(entry.workStart), e = timeToDecimal(entry.workEnd);
+  if (s==null || e==null) return null;
+  var diff = e - s;
+  return diff>0 ? diff : null;
+}
+function keritesOverrideItem(entry){
+  var kitems = STATE.catalog.kerites.items;
+  for (var i=0;i<kitems.length;i++){
+    if (kitems[i].override && entry.items && entry.items[kitems[i].key] > 0) return kitems[i];
+  }
+  return null;
+}
+function keritesHourBreakdown(entry){
+  var perf, overrideItem = keritesOverrideItem(entry);
+  if (overrideItem){
+    perf = overrideItem.hoursPerUnit;
+  } else {
+    var kitems = STATE.catalog.kerites.items, unitHours = 0;
+    for (var j=0;j<kitems.length;j++){
+      var qk = (entry.items && entry.items[kitems[j].key]) || 0;
+      unitHours += qk * kitems[j].hoursPerUnit;
+    }
+    var fixed = unitHours>0 ? (STATE.catalog.kerites.fixedDailyHours.utazas + STATE.catalog.kerites.fixedDailyHours.jarulekos) : 0;
+    perf = unitHours + fixed;
+  }
+  var clocked = workedHoursOf(entry);
+  var topUp = (clocked!=null && clocked>perf) ? (clocked-perf) : 0;
+  return { perf: perf, clocked: clocked, topUp: topUp, overrideItem: overrideItem };
+}
+function isHourAnomaly(entry){
+  if (!entry || entry.trade!=="kerites" || entry.dayType!=="work") return false;
+  var b = keritesHourBreakdown(entry);
+  return b.clocked!=null && b.perf > b.clocked * 1.2;
+}
+function keritesHoursInfoHtml(entry){
+  if (entry.dayType !== "work") return "";
+  var b = keritesHourBreakdown(entry);
+  var html = b.overrideItem
+    ? '<div class="recent-item"><span>Teljesítmény óra</span><span class="mono">'+b.perf.toFixed(1)+' óra ('+escapeHtml(b.overrideItem.label)+' — fix)</span></div>'
+    : '<div class="recent-item"><span>Teljesítmény óra</span><span class="mono">'+b.perf.toFixed(1)+' óra</span></div>';
+  if (b.clocked!=null){
+    html += '<div class="recent-item"><span>Ledolgozott idő</span><span class="mono">'+entry.workStart+'–'+entry.workEnd+' ('+b.clocked.toFixed(1)+' óra)</span></div>';
+    if (b.topUp > 0.001){
+      html += '<div class="recent-item"><span>Órabéres pótlás</span><span class="mono">+'+b.topUp.toFixed(1)+' óra</span></div>';
+    }
+  } else {
+    html += '<p class="muted" style="font-size:.8rem">Nincs rögzítve munkaidő ehhez a naphoz.</p>';
+  }
+  return html;
+}
+
+function calcEntryValue(entry, person){
+  if (!entry) return 0;
+  if (entry.dayType === "vacation" || entry.dayType === "sick"){
+    var rk = roleKey(person.role);
+    if (!rk) return 0;
+    var table = STATE.dailyPay && STATE.dailyPay[entry.dayType];
+    return (table && table[rk]) || 0;
+  }
+  if (entry.dayType !== "work") return 0;
+  if (person.trade === "ajto") {
+    var items = STATE.catalog.ajto.items, itemsTotal = 0, anyQty = false;
+    for (var i=0;i<items.length;i++){
+      var q = (entry.items && entry.items[items[i].key]) || 0;
+      if (q>0) anyQty = true;
+      itemsTotal += q * (person.prices[items[i].key]||0);
+    }
+    var travel = anyQty ? (person.travelFeePerDay||0) : 0;
+    var assembly = (entry.assemblyHours||0) * STATE.catalog.ajto.assemblyHourlyRate;
+    return itemsTotal + travel + assembly;
+  } else {
+    var b = keritesHourBreakdown(entry);
+    var payHours = b.clocked!=null ? Math.max(b.perf, b.clocked) : b.perf;
+    return payHours * (person.hourlyRate||0);
+  }
+}
+
+function monthEntries(personId, month){
+  return STATE.entries.filter(function(e){ return e.personId===personId && e.date.slice(0,7)===month; });
+}
+function monthPieceTotal(personId, month){
+  var person = getPerson(personId), sum=0;
+  monthEntries(personId, month).forEach(function(e){ sum += calcEntryValue(e, person); });
+  return sum;
+}
+function monthExtrasTotal(personId, month){
+  return STATE.extras.filter(function(x){ return x.personId===personId && x.month===month; })
+    .reduce(function(s,x){ return s + (x.amount||0); }, 0);
+}
+
+/* ---------- MENTÉS / BETÖLTÉS (Supabase) ---------- */
+function sb(path, opts){
+  opts = opts || {};
+  var headers = { apikey: SUPABASE_KEY, Authorization: "Bearer " + SUPABASE_KEY };
+  if (opts.body) headers["Content-Type"] = "application/json";
+  if (opts.prefer) headers["Prefer"] = opts.prefer;
+  return fetch(SUPABASE_URL + "/rest/v1/" + path, {
+    method: opts.method || "GET",
+    headers: headers,
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  }).then(function(r){
+    if (!r.ok) return r.text().then(function(t){ throw new Error(t); });
+    if (r.status === 204) return null;
+    return r.text().then(function(t){ return t ? JSON.parse(t) : null; });
+  });
+}
+function sbUpsert(table, rows, conflictCols){
+  return sb(table + "?on_conflict=" + conflictCols, {
+    method: "POST", body: rows, prefer: "resolution=merge-duplicates,return=minimal"
+  });
+}
+function sbFail(){ toast("Nincs internet, vagy a szerver nem elérhető — próbáld újra."); }
+function roleToKey(role){
+  if (role === "Vezető szerelő") return "vezeto";
+  if (role === "Segéd szerelő") return "seged";
+  return null;
+}
+function keyToRole(k){
+  if (k === "vezeto") return "Vezető szerelő";
+  if (k === "seged") return "Segéd szerelő";
+  return "";
+}
+
+function loadState(afterOk){
+  Promise.all([
+    sb("settings?id=eq.1&select=*"),
+    sb("daily_pay_rates?select=*"),
+    sb("people?select=*"),
+    sb("ajto_prices?select=*"),
+    sb("catalog_items?select=*&order=sort_order"),
+    sb("entries?deleted_at=is.null&select=*,entry_items(item_key,qty)"),
+    sb("extras?deleted_at=is.null&select=*"),
+    sb("month_locks?select=*")
+  ]).then(function(r){
+    var settings = (r[0] && r[0][0]) || { admin_pin:"1234", assembly_hourly_rate:0, kerites_utazas_hours:0, kerites_jarulekos_hours:0 };
+    var dailyPay = { vacation:{vezeto:0,seged:0}, sick:{vezeto:0,seged:0} };
+    (r[1]||[]).forEach(function(row){ if (dailyPay[row.day_type]) dailyPay[row.day_type][row.role] = row.amount; });
+
+    var pricesByPerson = {};
+    (r[3]||[]).forEach(function(row){
+      if (!pricesByPerson[row.person_id]) pricesByPerson[row.person_id] = {};
+      pricesByPerson[row.person_id][row.item_key] = row.price;
+    });
+    var people = (r[2]||[]).map(function(p){
+      var out = { id:p.id, name:p.name, trade:p.trade, role:keyToRole(p.role), active:p.active };
+      if (p.pin) out.pin = p.pin;
+      if (p.trade === "ajto"){ out.travelFeePerDay = p.travel_fee_per_day||0; out.prices = pricesByPerson[p.id]||{}; }
+      else { out.hourlyRate = p.hourly_rate||0; }
+      return out;
+    });
+
+    var ajtoItems = [], keritesItems = [];
+    (r[4]||[]).forEach(function(c){
+      if (c.trade === "ajto") ajtoItems.push({ key:c.key, label:c.label, group:c.group_name });
+      else {
+        var it = { key:c.key, label:c.label, hoursPerUnit:c.hours_per_unit };
+        if (c.is_override) it.override = true;
+        keritesItems.push(it);
+      }
+    });
+    var catalog = {
+      ajto: { assemblyHourlyRate: settings.assembly_hourly_rate||0, items: ajtoItems },
+      kerites: { fixedDailyHours: { utazas: settings.kerites_utazas_hours||0, jarulekos: settings.kerites_jarulekos_hours||0 }, items: keritesItems }
+    };
+
+    var entries = (r[5]||[]).map(function(row){
+      var items = {};
+      (row.entry_items||[]).forEach(function(ei){ items[ei.item_key] = ei.qty; });
+      return {
+        personId: row.person_id, date: row.date, trade: row.trade, dayType: row.day_type,
+        items: items, orderRef: row.order_ref||"", assemblyHours: row.assembly_hours||0,
+        bontasFestesOra: row.bontas_festes_ora||0, garanciaEgyebOra: row.garancia_egyeb_ora||0,
+        workStart: row.work_start ? row.work_start.slice(0,5) : "", workEnd: row.work_end ? row.work_end.slice(0,5) : "",
+        comment: row.comment||"", submittedAt: row.submitted_at, reviewedOk: row.reviewed_ok||false
+      };
+    });
+    var extras = (r[6]||[]).map(function(row){ return { id:row.id, personId:row.person_id, month:row.month, label:row.label||"", amount:row.amount||0 }; });
+    var monthLocks = (r[7]||[]).map(function(row){ return { trade:row.trade, month:row.month, locked:row.locked }; });
+
+    STATE = { adminPin: settings.admin_pin, dailyPay: dailyPay, people: people, catalog: catalog, entries: entries, extras: extras, monthLocks: monthLocks };
+    if (afterOk) afterOk();
+  }).catch(function(err){
+    console.error(err);
+    if (afterOk) afterOk();
+  });
+}
+
+function dbEntryRow(e){
+  return {
+    person_id: e.personId, date: e.date, trade: e.trade, day_type: e.dayType,
+    order_ref: e.orderRef||"", assembly_hours: e.assemblyHours||0,
+    bontas_festes_ora: e.bontasFestesOra||0, garancia_egyeb_ora: e.garanciaEgyebOra||0,
+    work_start: e.workStart || null, work_end: e.workEnd || null,
+    comment: e.comment||"", reviewed_ok: !!e.reviewedOk,
+    submitted_at: e.submittedAt || new Date().toISOString(),
+    deleted_at: null
+  };
+}
+function saveEntries(entriesArr, afterOk){
+  var rows = entriesArr.map(dbEntryRow);
+  sb("entries?on_conflict=person_id,date", { method:"POST", body: rows, prefer:"resolution=merge-duplicates,return=representation" })
+    .then(function(savedRows){
+      var idByKey = {};
+      (savedRows||[]).forEach(function(r){ idByKey[r.person_id+"|"+r.date] = r.id; });
+      var entryIds = [];
+      var itemRows = [];
+      entriesArr.forEach(function(e){
+        var id = idByKey[e.personId+"|"+e.date];
+        if (!id) return;
+        entryIds.push(id);
+        Object.keys(e.items||{}).forEach(function(k){ if (e.items[k] > 0) itemRows.push({ entry_id:id, item_key:k, qty:e.items[k] }); });
+      });
+      var delP = entryIds.length ? sb("entry_items?entry_id=in.(" + entryIds.join(",") + ")", { method:"DELETE", prefer:"return=minimal" }) : Promise.resolve();
+      return delP.then(function(){
+        if (!itemRows.length) return;
+        return sb("entry_items", { method:"POST", body:itemRows, prefer:"return=minimal" });
+      });
+    })
+    .then(function(){ if (afterOk) afterOk(); })
+    .catch(function(err){ console.error(err); sbFail(); });
+}
+function deleteEntry(personId, date, afterOk){
+  sb("entries?person_id=eq."+encodeURIComponent(personId)+"&date=eq."+date, { method:"PATCH", body:{deleted_at:new Date().toISOString()}, prefer:"return=minimal" })
+    .then(function(){ if (afterOk) afterOk(); })
+    .catch(sbFail);
+}
+
+/* ---------- TOAST ---------- */
+function toast(msg){
+  var el = document.querySelector(".toast");
+  if (el) el.remove();
+  el = document.createElement("div");
+  el.className = "toast"; el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(function(){ el.remove(); }, 3200);
+}
+
+/* ---------- RENDER ---------- */
+function h(html){ var t=document.createElement("template"); t.innerHTML=html.trim(); return t.content.firstChild; }
+function setRoot(html){ document.getElementById("root").innerHTML = html; }
+function showConfirmModal(message, onConfirm, opts){
+  opts = opts || {};
+  var showOk = opts.showOk !== false;
+  var cancelLabel = opts.cancelLabel || "Mégsem, javítom";
+  var buttonsHtml = showOk
+    ? '<button class="ghost" id="cm-cancel">'+escapeHtml(cancelLabel)+'</button><button class="primary" id="cm-ok">Jóváhagyom</button>'
+    : '<button class="primary" id="cm-cancel">'+escapeHtml(cancelLabel)+'</button>';
+  var badgeHtml = opts.badge ? '<div style="text-align:center"><span class="badge-stamp">'+escapeHtml(opts.badge)+'</span></div>' : '';
+  var bg = h('<div class="modal-bg"><div class="modal">' +
+    '<p style="white-space:pre-line;line-height:1.5;font-weight:600">'+escapeHtml(message)+'</p>' +
+    badgeHtml +
+    '<div style="display:flex;gap:.6rem;margin-top:1.2rem">' + buttonsHtml + '</div></div></div>');
+  document.body.appendChild(bg);
+  bg.querySelector("#cm-cancel").onclick = function(){ bg.remove(); if (opts.onCancel) opts.onCancel(); };
+  if (showOk) bg.querySelector("#cm-ok").onclick = function(){ bg.remove(); onConfirm(); };
+}
+
+function render(){
+  if (nav.view === "landing") return renderLanding();
+  if (nav.view === "names") return renderNames();
+  if (nav.view === "setpin") return renderSetPin();
+  if (nav.view === "checkpin") return renderCheckPin();
+  if (nav.view === "entry") return renderEntry();
+  if (nav.view === "adminpin") return renderAdminPin();
+  if (nav.view === "admin") return renderAdmin();
+}
+
+function headerHtml(sub, backTo){
+  return '<div class="header"><span class="brand"><span class="dot"></span>NIVO</span>' +
+    '<span class="sub">' + escapeHtml(sub||"Szerelő napló") + '</span>' +
+    (backTo ? '<a class="back-link" href="#" data-nav="'+backTo+'">Vissza</a>' : '') +
+    '</div>';
+}
+
+function renderLanding(){
+  setRoot(
+    headerHtml("Szerelő napló") +
+    '<main><div class="hero"><h1>Napi beépítés rögzítése</h1><p>Válaszd ki, melyik csapatban dolgozol.</p></div>' +
+    '<div class="big-grid">' +
+    '<div class="big-card" data-trade="ajto"><span class="ico">🚪</span>Ajtó</div>' +
+    '<div class="big-card" data-trade="kerites"><span class="ico">🚧</span>Kerítés</div>' +
+    '</div></main>' +
+    '<div class="foot-admin"><a href="#" data-nav="adminpin">Admin belépés</a></div>'
+  );
+  document.querySelectorAll(".big-card").forEach(function(el){
+    el.onclick = function(){ nav.trade = el.getAttribute("data-trade"); nav.view = "names"; render(); };
+  });
+  wireNav();
+}
+
+function renderNames(){
+  var list = STATE.people.filter(function(p){ return p.trade===nav.trade && p.active!==false; });
+  setRoot(
+    headerHtml(nav.trade==="ajto" ? "Ajtószerelők" : "Kerítésszerelők", "landing") +
+    '<main><div class="hero"><h1>Ki vagy?</h1><p>Koppints a saját neveden.</p></div>' +
+    '<div class="name-list">' +
+    list.map(function(p){
+      return '<div class="name-btn" data-person="'+p.id+'"><span>'+escapeHtml(p.name)+'</span><span class="role">'+escapeHtml(p.role||"")+'</span></div>';
+    }).join("") +
+    '</div></main>'
+  );
+  document.querySelectorAll(".name-btn").forEach(function(el){
+    el.onclick = function(){
+      nav.personId = el.getAttribute("data-person");
+      nav.editDate = null;
+      var p = getPerson(nav.personId);
+      nav.view = p.pin ? "checkpin" : "setpin";
+      render();
+    };
+  });
+  wireNav();
+}
+
+function renderSetPin(){
+  var person = getPerson(nav.personId);
+  if (!person){ nav.view="landing"; return render(); }
+  setRoot(
+    headerHtml(person.name, "names") +
+    '<main><div class="pin-wrap"><h1>Első belépés</h1>' +
+    '<p class="muted">Válassz egy legalább 4 jegyű kódot — legközelebb ezzel léphetsz be a saját napládhoz.</p>' +
+    '<div class="field" style="margin-top:1rem"><input type="text" inputmode="numeric" id="f-newpin" maxlength="8" placeholder="••••"></div>' +
+    '<div class="field"><input type="text" inputmode="numeric" id="f-newpin2" maxlength="8" placeholder="még egyszer"></div>' +
+    '<button class="primary" id="f-setpin-go">Kód mentése</button>' +
+    '</div></main>'
+  );
+  document.getElementById("f-setpin-go").onclick = function(){
+    var v1 = document.getElementById("f-newpin").value.trim();
+    var v2 = document.getElementById("f-newpin2").value.trim();
+    if (v1.length < 4){ toast("Legalább 4 jegyű kódot adj meg."); return; }
+    if (v1 !== v2){ toast("A két kód nem egyezik."); return; }
+    person.pin = v1;
+    try { localStorage.setItem("szn_person", person.id); } catch(e){}
+    sb("people?id=eq."+encodeURIComponent(person.id), { method:"PATCH", body:{pin:v1}, prefer:"return=minimal" })
+      .then(function(){ nav.view = "entry"; nav.editDate = null; render(); })
+      .catch(sbFail);
+  };
+  wireNav();
+}
+
+function renderCheckPin(){
+  var person = getPerson(nav.personId);
+  if (!person){ nav.view="landing"; return render(); }
+  setRoot(
+    headerHtml(person.name, "names") +
+    '<main><div class="pin-wrap"><h1>Add meg a kódod</h1>' +
+    '<p class="muted">A korábban beállított saját kódoddal léphetsz be.</p>' +
+    '<div class="field" style="margin-top:1rem"><input type="text" inputmode="numeric" id="f-checkpin" maxlength="8" placeholder="••••"></div>' +
+    '<button class="primary" id="f-checkpin-go">Belépés</button>' +
+    '<p class="muted" style="margin-top:1rem;font-size:.8rem">Elfelejtetted? Szólj az adminnak, ő tudja törölni a kódot.</p>' +
+    '</div></main>'
+  );
+  document.getElementById("f-checkpin-go").onclick = function(){
+    if (document.getElementById("f-checkpin").value.trim() === person.pin){
+      try { localStorage.setItem("szn_person", person.id); } catch(e){}
+      nav.view = "entry"; nav.editDate = null; render();
+    } else { toast("Helytelen kód."); }
+  };
+  wireNav();
+}
+
+function renderEntry(){
+  var person = getPerson(nav.personId);
+  if (!person){ nav.view="landing"; return render(); }
+  var date = nav.editDate || todayStr();
+  var existing = entryFor(person.id, date) || { items:{}, comment:"", dayType:"work", orderRef:"", assemblyHours:0, bontasFestesOra:0, garanciaEgyebOra:0, workStart:"", workEnd:"" };
+  var minDate = new Date(); minDate.setDate(minDate.getDate()-7);
+  var minDateStr = minDate.getFullYear()+"-"+pad(minDate.getMonth()+1)+"-"+pad(minDate.getDate());
+  var locked = isLocked(person.trade, date.slice(0,7));
+
+  var catalog = STATE.catalog[person.trade];
+  function counterRow(it){
+    var q = existing.items[it.key] || 0;
+    var priceLabel = person.trade==="ajto" ? fmtFt(person.prices[it.key]||0) : (it.hoursPerUnit + " óra/db");
+    if (it.override){
+      return '<div class="counter" data-key="'+it.key+'">' +
+        '<div><span class="lbl">'+escapeHtml(it.label)+'</span><span class="price mono">'+priceLabel+'</span></div>' +
+        '<input type="checkbox" class="override-check" data-check style="width:1.6rem;height:1.6rem"'+(q>0?" checked":"")+'>' +
+        '</div>';
+    }
+    return '<div class="counter" data-key="'+it.key+'">' +
+      '<div><span class="lbl">'+escapeHtml(it.label)+'</span><span class="price mono">'+priceLabel+'</span></div>' +
+      '<div class="stepper"><button type="button" data-d="-1">–</button><input type="number" inputmode="numeric" class="qty mono" data-qty min="0" value="'+q+'"><button type="button" data-d="1">+</button></div>' +
+      '</div>';
+  }
+  var itemsLabel = "Beépített tételek";
+  var counters;
+  if (person.trade === "ajto"){
+    counters = groupAjtoItems(catalog.items).map(function(grp){
+      return '<div class="item-group"><div class="item-group-title">'+escapeHtml(grp.label)+'</div>' +
+        '<div class="counter-list">' + grp.items.map(counterRow).join("") + '</div></div>';
+    }).join("");
+    itemsLabel = "";
+  } else {
+    counters = '<div class="counter-list">' + catalog.items.map(counterRow).join("") + '</div>';
+  }
+
+  var extraFields = "";
+  if (person.trade === "ajto"){
+    extraFields = '<div class="field"><label>Összerakási idő (óra, ha volt)</label>' +
+      '<input type="number" min="0" step="0.1" id="f-assembly" value="'+(existing.assemblyHours||0)+'"></div>';
+  } else {
+    extraFields = '<div class="row">' +
+      '<div class="field"><label>Bontás / festés (óra)</label><input type="number" min="0" step="0.1" id="f-bontas" value="'+(existing.bontasFestesOra||0)+'"></div>' +
+      '<div class="field"><label>Garancia / egyéb (óra)</label><input type="number" min="0" step="0.1" id="f-garancia" value="'+(existing.garanciaEgyebOra||0)+'"></div>' +
+      '</div>';
+  }
+
+  var timeFields = "";
+  if (person.trade === "kerites"){
+    timeFields = '<div class="row">' +
+      '<div class="field"><label>Munkakezdés</label><input type="time" id="f-work-start" value="'+escapeHtml(existing.workStart||"")+'"></div>' +
+      '<div class="field"><label>Munkavég</label><input type="time" id="f-work-end" value="'+escapeHtml(existing.workEnd||"")+'"></div>' +
+      '</div>';
+  }
+
+  var recent = STATE.entries.filter(function(e){ return e.personId===person.id; })
+    .sort(function(a,b){ return b.date.localeCompare(a.date); }).slice(0,7);
+
+  setRoot(
+    headerHtml(person.name, "names") +
+    '<main><div class="card">' +
+    '<div class="field"><label>Dátum</label><input type="date" id="f-date" value="'+date+'" min="'+minDateStr+'" max="'+todayStr()+'"></div>' +
+    (locked ? '<p class="pill warn">Ez a hónap már le van zárva — csak admin tud módosítani.</p>' : '') +
+    '<div class="field"><label>Nap típusa</label><div class="day-type-group">' +
+    '<button type="button" class="day-type-btn" data-daytype="work">Dolgozott</button>' +
+    '<button type="button" class="day-type-btn" data-daytype="vacation">Szabadság</button>' +
+    '<button type="button" class="day-type-btn" data-daytype="sick">Betegállomány</button>' +
+    '</div></div>' +
+    '<div id="work-fields">' +
+    '<div class="field"><label>Munka / rendelés azonosító (opcionális)</label><input type="text" id="f-order" placeholder="pl. 1060/26" value="'+escapeHtml(existing.orderRef||"")+'"></div>' +
+    timeFields +
+    (itemsLabel ? '<label>'+itemsLabel+'</label>' : '') + counters +
+    extraFields +
+    '</div>' +
+    '<div class="field" style="margin-top:.9rem"><label>Megjegyzés</label><textarea id="f-comment" placeholder="Bármi, amit jelezni szeretnél...">'+escapeHtml(existing.comment||"")+'</textarea></div>' +
+    '<button class="primary" id="f-save"'+(locked?" disabled":"")+'>Mentés</button>' +
+    '</div>' +
+    (recent.length ? '<div class="section-title"><h2>Korábbi napjaid</h2></div><div class="card">' +
+      recent.map(function(e){
+        var val = calcEntryValue(e, person);
+        var tag = e.dayType==="vacation" ? " · Szabadság" : (e.dayType==="sick" ? " · Betegállomány" : "");
+        return '<div class="recent-item"><span>'+fmtDateFull(e.date)+tag+'</span>' +
+          '<span><span class="mono">'+fmtFt(val)+'</span> ' +
+          '<button class="link" data-edit="'+e.date+'">szerkeszt</button></span></div>';
+      }).join("") + '</div>' : '') +
+    '</main>'
+  );
+
+  var dayType = existing.dayType || "work";
+  var anomalyChecked = false;
+  function syncDayTypeUi(){
+    document.querySelectorAll(".day-type-btn").forEach(function(b){
+      b.classList.toggle("active", b.getAttribute("data-daytype")===dayType);
+    });
+    document.getElementById("work-fields").style.display = dayType==="work" ? "" : "none";
+  }
+  syncDayTypeUi();
+  document.querySelectorAll(".day-type-btn").forEach(function(b){
+    b.onclick = function(){ dayType = b.getAttribute("data-daytype"); syncDayTypeUi(); };
+  });
+
+  document.querySelectorAll(".counter").forEach(function(row){
+    var qtyEl = row.querySelector("[data-qty]");
+    if (!qtyEl) return;
+    row.querySelectorAll(".stepper button").forEach(function(btn){
+      btn.onclick = function(){
+        var v = (parseInt(qtyEl.value,10)||0) + parseInt(btn.getAttribute("data-d"),10);
+        if (v<0) v=0;
+        qtyEl.value = v;
+      };
+    });
+    qtyEl.onchange = function(){
+      var v = parseInt(qtyEl.value,10);
+      if (isNaN(v) || v<0) v=0;
+      qtyEl.value = v;
+    };
+  });
+
+  document.querySelectorAll("[data-edit]").forEach(function(el){
+    el.onclick = function(){ nav.editDate = el.getAttribute("data-edit"); render(); };
+  });
+
+  document.getElementById("f-date").onchange = function(){ nav.editDate = this.value; render(); };
+
+  document.getElementById("f-save").onclick = function(){
+    var d = document.getElementById("f-date").value;
+    var entryLocked = isLocked(person.trade, d.slice(0,7));
+    if (entryLocked){ toast("Ez a hónap le van zárva."); return; }
+    if (!nav.adminAuthed && d < minDateStr){ toast("Ez a nap már több mint 7 napja van — szólj az adminnak, ha módosítani szeretnél rajta."); return; }
+    if (person.trade==="kerites" && dayType==="work"){
+      var ws = (document.getElementById("f-work-start")||{}).value;
+      var we = (document.getElementById("f-work-end")||{}).value;
+      if (!ws || !we){ toast("Add meg a munkakezdés és munkavég időpontját."); return; }
+      if (timeToDecimal(we) <= timeToDecimal(ws)){ toast("A munkavégnek később kell lennie, mint a munkakezdésnek."); return; }
+    }
+    var items = {};
+    document.querySelectorAll(".counter").forEach(function(row){
+      var k = row.getAttribute("data-key");
+      var checkEl = row.querySelector("[data-check]");
+      var v = checkEl ? (checkEl.checked ? 1 : 0) : (parseInt(row.querySelector("[data-qty]").value,10)||0);
+      if (v>0) items[k]=v;
+    });
+    var entry = {
+      personId: person.id, date: d, trade: person.trade, dayType: dayType,
+      items: items,
+      orderRef: (document.getElementById("f-order")||{}).value || "",
+      assemblyHours: person.trade==="ajto" ? (parseFloat((document.getElementById("f-assembly")||{}).value)||0) : 0,
+      bontasFestesOra: person.trade==="kerites" ? (parseFloat((document.getElementById("f-bontas")||{}).value)||0) : 0,
+      garanciaEgyebOra: person.trade==="kerites" ? (parseFloat((document.getElementById("f-garancia")||{}).value)||0) : 0,
+      workStart: person.trade==="kerites" ? ((document.getElementById("f-work-start")||{}).value || "") : "",
+      workEnd: person.trade==="kerites" ? ((document.getElementById("f-work-end")||{}).value || "") : "",
+      comment: document.getElementById("f-comment").value,
+      submittedAt: new Date().toISOString()
+    };
+    function doSave(){
+      var idx = STATE.entries.findIndex(function(e){ return e.personId===person.id && e.date===entry.date; });
+      if (idx>=0) STATE.entries[idx] = entry; else STATE.entries.push(entry);
+      nav.editDate = null;
+      saveEntries([entry], function(){ toast("Mentve! Köszi a munkát."); render(); });
+    }
+
+    if (isHourAnomaly(entry)){
+      if (!anomalyChecked){
+        showConfirmModal("Magas a mai napon a teljesítményed, ellenőriz a beírásokat!", null, {
+          showOk: false,
+          cancelLabel: "Vissza, ellenőrzöm",
+          onCancel: function(){ anomalyChecked = true; }
+        });
+      } else {
+        showConfirmModal("Ha tényleg ennyit szereltél, akkor hagyd jóvá és", doSave, {
+          badge: "FASZÁK VAGYTOK SRÁCOK!"
+        });
+      }
+      return;
+    }
+    doSave();
+  };
+
+  wireNav();
+}
+
+function renderAdminPin(){
+  setRoot(
+    headerHtml("Admin belépés", "landing") +
+    '<main><div class="pin-wrap"><h1>PIN kód</h1><p class="muted">Add meg az admin PIN kódot.</p>' +
+    '<div class="field" style="margin-top:1rem"><input type="text" inputmode="numeric" id="f-pin" maxlength="8" placeholder="••••"></div>' +
+    '<button class="primary" id="f-pin-go">Belépés</button>' +
+    '</div></main>'
+  );
+  document.getElementById("f-pin-go").onclick = function(){
+    if (document.getElementById("f-pin").value === STATE.adminPin){
+      nav.adminAuthed = true;
+      try { sessionStorage.setItem("szn_admin","1"); } catch(e){}
+      nav.view = "admin"; render();
+    } else { toast("Helytelen PIN."); }
+  };
+  wireNav();
+}
+
+function renderAdmin(){
+  if (!nav.adminAuthed){ nav.view="adminpin"; return render(); }
+  var trade = nav.adminTrade, month = nav.adminMonth, tab = nav.adminTab || "overview";
+  var people = STATE.people.filter(function(p){ return p.trade===trade; });
+  var locked = isLocked(trade, month);
+  var showMonthFilter = (tab==="overview" || tab==="payroll" || tab==="personMonth");
+
+  var navItems = [
+    { key:"overview", label:"📋 Napló mátrix" },
+    { key:"payroll", label:"💰 Bérszámítás" },
+    { key:"people", label:"👷 Szerelők" },
+    { key:"pricing", label:"🏷️ Árazás" },
+    { key:"settings", label:"⚙️ Beállítások" }
+  ];
+  var sidebar = '<div class="admin-sidebar">' + navItems.map(function(it){
+    return '<button class="admin-nav-btn'+(tab===it.key?" active":"")+'" data-tab="'+it.key+'">'+it.label+'</button>';
+  }).join("") + '</div>';
+
+  var topbar = '<div class="admin-topbar">' +
+    '<select id="a-trade"><option value="ajto"'+(trade==="ajto"?" selected":"")+'>Ajtó</option><option value="kerites"'+(trade==="kerites"?" selected":"")+'>Kerítés</option></select>' +
+    (showMonthFilter ? '<input type="month" id="a-month" value="'+month+'">' : '') +
+    '<span style="flex:1"></span>' +
+    (showMonthFilter ? ((locked ? '<span class="pill warn">Hónap lezárva</span>' : '<span class="pill ok">Nyitott hónap</span>') +
+      '<button class="ghost" id="a-lock">'+(locked?"Feloldás":"Hónap lezárása")+'</button>') : '') +
+    '</div>';
+
+  var personMonthPerson = tab==="personMonth" ? getPerson(nav.adminPersonId) : null;
+  if (tab==="personMonth" && !personMonthPerson) tab = "overview";
+
+  var content;
+  if (tab==="overview") content = buildOverviewTab(people, trade, month);
+  else if (tab==="payroll") content = buildPayrollTab(people, trade, month);
+  else if (tab==="people") content = buildPeopleTab(people, trade);
+  else if (tab==="pricing") content = buildPricingTab(people, trade);
+  else if (tab==="personMonth") content = buildPersonMonthTab(personMonthPerson, month, locked);
+  else content = buildSettingsTab();
+
+  setRoot(
+    headerHtml("Admin", "landing") +
+    '<div class="admin-page"><div class="admin-body">' + sidebar +
+    '<div class="admin-content">' + topbar + content + '</div>' +
+    '</div></div>'
+  );
+
+  document.getElementById("a-trade").onchange = function(){ nav.adminTrade = this.value; nav.adminTab = "overview"; render(); };
+  if (showMonthFilter){
+    document.getElementById("a-month").onchange = function(){ nav.adminMonth = this.value; render(); };
+    document.getElementById("a-lock").onclick = function(){
+      var l = STATE.monthLocks.find(function(x){ return x.trade===trade && x.month===month; });
+      var newLocked = l ? !l.locked : true;
+      if (l) l.locked = newLocked; else STATE.monthLocks.push({ trade:trade, month:month, locked:newLocked });
+      sbUpsert("month_locks", {trade:trade, month:month, locked:newLocked}, "trade,month")
+        .then(function(){ render(); })
+        .catch(sbFail);
+    };
+  }
+  document.querySelectorAll(".admin-nav-btn").forEach(function(btn){
+    btn.onclick = function(){ nav.adminTab = btn.getAttribute("data-tab"); render(); };
+  });
+
+  if (tab==="overview") wireOverviewTab(people, trade, month);
+  else if (tab==="payroll") wirePayrollTab(people, trade, month);
+  else if (tab==="people") wirePeopleTab(people, trade);
+  else if (tab==="pricing") wirePricingTab(people, trade);
+  else if (tab==="personMonth") wirePersonMonthTab(personMonthPerson, month, locked);
+  else wireSettingsTab();
+
+  wireNav();
+}
+
+function buildOverviewTab(people, trade, month){
+  var dim = daysInMonth(month), today = todayStr();
+  var worked=0, vac=0, sick=0, missing=0, anomaly=0;
+  var matrixHead = '<th class="name-col">Szerelő</th>' +
+    Array.from({length:dim},function(_,i){ return i+1; }).map(function(d){
+      return '<th'+(weekday(month,d)===0||weekday(month,d)===6?' class="wknd"':'')+'>'+d+'</th>';
+    }).join("");
+  var matrixRows = people.map(function(p){
+    var cells = Array.from({length:dim},function(_,i){ return i+1; }).map(function(d){
+      var dateStr = month+"-"+pad(d);
+      var wknd = weekday(month,d)===0||weekday(month,d)===6;
+      var e = entryFor(p.id, dateStr);
+      var mark = "", cls = "cell" + (wknd?" wknd":"");
+      if (e){
+        if (e.dayType==="vacation"){ mark='<span title="Szabadság">✈</span>'; vac++; }
+        else if (e.dayType==="sick"){ mark='<span style="color:var(--sick)" title="Betegállomány">✚</span>'; sick++; }
+        else if (isHourAnomaly(e) && !e.reviewedOk){ mark='<span style="color:var(--flag)" title="Magas teljesítmény — ellenőrizd!">⚠</span>'; worked++; anomaly++; }
+        else { mark='<span style="color:var(--ok)" title="Rögzítve">●</span>'; worked++; }
+      }
+      else if (dateStr <= today && !wknd) { mark = '<span style="color:var(--warn)" title="Hiányzik">·</span>'; missing++; }
+      return '<td class="'+cls+'" data-person="'+p.id+'" data-date="'+dateStr+'">'+mark+'</td>';
+    }).join("");
+    return '<tr><td class="name-col"><button type="button" class="link" data-open-person="'+p.id+'">'+escapeHtml(p.name)+'</button></td>'+cells+'</tr>';
+  }).join("");
+
+  return '<h1 class="admin-h1">Napló mátrix</h1><p class="muted" style="margin-bottom:1.2rem">Kattints egy napra a részletekért, vagy egy szerelő nevére a havi táblázatért.</p>' +
+    '<div class="stat-row">' +
+    '<div class="stat-tile"><span class="n mono" style="color:var(--ok)">'+worked+'</span><span class="l">Rögzített nap</span></div>' +
+    '<div class="stat-tile"><span class="n mono" style="color:var(--info)">'+vac+'</span><span class="l">Szabadság</span></div>' +
+    '<div class="stat-tile"><span class="n mono" style="color:var(--sick)">'+sick+'</span><span class="l">Betegállomány</span></div>' +
+    '<div class="stat-tile"><span class="n mono" style="color:var(--warn)">'+missing+'</span><span class="l">Hiányzó nap</span></div>' +
+    (trade==="kerites" ? '<div class="stat-tile"><span class="n mono" style="color:var(--flag)">'+anomaly+'</span><span class="l">Magas teljesítmény</span></div>' : '') +
+    '</div>' +
+    '<div class="matrix-scroll"><table class="matrix"><thead><tr>'+matrixHead+'</tr></thead><tbody>'+matrixRows+'</tbody></table></div>' +
+    '<p class="muted" style="margin-top:.6rem;font-size:.8rem">● rögzítve · ✈ szabadság · ✚ betegállomány · · hiányzik (hétköznap, nincs bejegyzés)'+(trade==="kerites"?' · ⚠ magas teljesítmény — ellenőrizendő':'')+'</p>';
+}
+function wireOverviewTab(people, trade, month){
+  document.querySelectorAll(".matrix td.cell").forEach(function(td){
+    td.onclick = function(){ openEntryModal(td.getAttribute("data-person"), td.getAttribute("data-date")); };
+  });
+  document.querySelectorAll("[data-open-person]").forEach(function(btn){
+    btn.onclick = function(){ nav.adminPersonId = btn.getAttribute("data-open-person"); nav.adminTab = "personMonth"; render(); };
+  });
+}
+
+function buildPersonMonthTab(person, month, locked){
+  var dim = daysInMonth(month);
+  var trade = person.trade;
+  var isAjto = trade === "ajto";
+  var items = isAjto
+    ? groupAjtoItems(STATE.catalog.ajto.items).reduce(function(acc,g){ return acc.concat(g.items); }, [])
+    : STATE.catalog.kerites.items;
+
+  function itemColLabel(it){
+    return escapeHtml(it.label) + (isAjto ? "" : '<br><span class="muted" style="font-weight:400;font-size:.68rem">'+it.hoursPerUnit+' óra/db</span>');
+  }
+
+  var groupHeaderRow = "";
+  if (isAjto){
+    var groups = groupAjtoItems(STATE.catalog.ajto.items);
+    var trailingCount = 1 + 2; // Összerakás + Megjegyzés + Érték
+    groupHeaderRow = '<tr><th colspan="2"></th>' + groups.map(function(g){
+      return '<th colspan="'+g.items.length+'" style="text-align:center;background:var(--surface-2)">'+escapeHtml(g.label)+'</th>';
+    }).join("") + '<th colspan="'+trailingCount+'"></th></tr>';
+  }
+  var itemHeadCells = items.map(function(it){ return '<th>'+itemColLabel(it)+'</th>'; }).join("");
+  var extraHeadCells = isAjto
+    ? '<th>Összerakás<br><span class="muted" style="font-weight:400;font-size:.68rem">óra</span></th>'
+    : '<th>Kezdés</th><th>Vég</th><th>Bontás/<br>festés</th><th>Garancia/<br>egyéb</th>';
+
+  var rows = "";
+  for (var d=1; d<=dim; d++){
+    var dateStr = month+"-"+pad(d);
+    var e = entryFor(person.id, dateStr);
+    var dt = e ? e.dayType : "";
+    var wknd = weekday(month,d)===0 || weekday(month,d)===6;
+
+    var itemCells = items.map(function(it){
+      var q = (e && e.items && e.items[it.key]) || 0;
+      if (it.override){
+        return '<td><input type="checkbox" data-pm-item="'+it.key+'" style="width:1.2rem;height:1.2rem"'+(q>0?" checked":"")+(locked?" disabled":"")+'></td>';
+      }
+      return '<td><input type="number" min="0" data-pm-item="'+it.key+'" value="'+q+'"'+(locked?" disabled":"")+'></td>';
+    }).join("");
+
+    var extraCells = isAjto
+      ? '<td><input type="number" min="0" step="0.1" data-pm-field="assemblyHours" value="'+((e&&e.assemblyHours)||0)+'"'+(locked?" disabled":"")+'></td>'
+      : '<td><input type="time" data-pm-field="workStart" value="'+escapeHtml((e&&e.workStart)||"")+'"'+(locked?" disabled":"")+'></td>' +
+        '<td><input type="time" data-pm-field="workEnd" value="'+escapeHtml((e&&e.workEnd)||"")+'"'+(locked?" disabled":"")+'></td>' +
+        '<td><input type="number" min="0" step="0.1" data-pm-field="bontasFestesOra" value="'+((e&&e.bontasFestesOra)||0)+'"'+(locked?" disabled":"")+'></td>' +
+        '<td><input type="number" min="0" step="0.1" data-pm-field="garanciaEgyebOra" value="'+((e&&e.garanciaEgyebOra)||0)+'"'+(locked?" disabled":"")+'></td>';
+
+    var val = e ? calcEntryValue(e, person) : 0;
+    var flagged = e && isHourAnomaly(e) && !e.reviewedOk;
+    var rowCls = flagged ? "flagrow" : (wknd ? "wknd" : "");
+
+    rows += '<tr data-date="'+dateStr+'"'+(rowCls?' class="'+rowCls+'"':'')+'>' +
+      '<td class="name-col">'+(flagged?'<span style="color:var(--flag)" title="Magas teljesítmény — ellenőrizd!">⚠ </span>':'')+d+'.</td>' +
+      '<td><select data-pm-daytype'+(locked?" disabled":"")+'>' +
+        '<option value=""'+(dt===""?" selected":"")+'>—</option>' +
+        '<option value="work"'+(dt==="work"?" selected":"")+'>Dolgozott</option>' +
+        '<option value="vacation"'+(dt==="vacation"?" selected":"")+'>Szabadság</option>' +
+        '<option value="sick"'+(dt==="sick"?" selected":"")+'>Betegállomány</option>' +
+      '</select></td>' +
+      itemCells + extraCells +
+      '<td><input type="text" data-pm-field="comment" value="'+escapeHtml((e&&e.comment)||"")+'"'+(locked?" disabled":"")+'></td>' +
+      '<td class="mono">'+fmtFt(val)+'</td>' +
+      '</tr>';
+  }
+
+  return '<button class="ghost" id="pm-back" style="margin-bottom:1rem">← Vissza a Napló mátrixhoz</button>' +
+    '<h1 class="admin-h1">'+escapeHtml(person.name)+' — '+month+'</h1>' +
+    (locked ? '<p class="pill warn" style="margin-bottom:1rem">Ez a hónap le van zárva — csak a feloldás után szerkeszthető.</p>' : '') +
+    '<div class="matrix-scroll"><table class="matrix pm-table">' +
+    '<thead>' + groupHeaderRow +
+    '<tr><th class="name-col">Nap</th><th>Típus</th>' + itemHeadCells + extraHeadCells + '<th>Megjegyzés</th><th>Érték</th></tr>' +
+    '</thead><tbody>' + rows + '</tbody></table></div>' +
+    (locked ? '' : '<button class="primary" id="pm-save" style="margin-top:1rem;max-width:220px">Mentés</button>');
+}
+function wirePersonMonthTab(person, month, locked){
+  document.getElementById("pm-back").onclick = function(){ nav.adminTab = "overview"; render(); };
+  if (locked){ wireNav(); return; }
+  document.getElementById("pm-save").onclick = function(){
+    var trade = person.trade;
+    var toSave = [];
+    document.querySelectorAll("tr[data-date]").forEach(function(row){
+      var dateStr = row.getAttribute("data-date");
+      var dayType = row.querySelector("[data-pm-daytype]").value;
+      var items = {};
+      row.querySelectorAll("[data-pm-item]").forEach(function(inp){
+        var key = inp.getAttribute("data-pm-item");
+        var v = inp.type === "checkbox" ? (inp.checked ? 1 : 0) : (parseFloat(inp.value)||0);
+        if (v>0) items[key] = v;
+      });
+      var fields = {};
+      row.querySelectorAll("[data-pm-field]").forEach(function(inp){
+        fields[inp.getAttribute("data-pm-field")] = inp.value;
+      });
+      var hasItems = Object.keys(items).length > 0;
+      var hasHours = trade==="ajto"
+        ? (parseFloat(fields.assemblyHours)||0) > 0
+        : ((parseFloat(fields.bontasFestesOra)||0) > 0 || (parseFloat(fields.garanciaEgyebOra)||0) > 0 || !!fields.workStart || !!fields.workEnd);
+      var hasComment = fields.comment && fields.comment.trim() !== "";
+      var existing = entryFor(person.id, dateStr);
+      var meaningful = dayType !== "" || hasItems || hasHours || hasComment;
+      if (!existing && !meaningful) return;
+
+      var entry = {
+        personId: person.id, date: dateStr, trade: trade,
+        dayType: dayType || "work",
+        items: items,
+        orderRef: existing ? (existing.orderRef||"") : "",
+        assemblyHours: trade==="ajto" ? (parseFloat(fields.assemblyHours)||0) : 0,
+        bontasFestesOra: trade==="kerites" ? (parseFloat(fields.bontasFestesOra)||0) : 0,
+        garanciaEgyebOra: trade==="kerites" ? (parseFloat(fields.garanciaEgyebOra)||0) : 0,
+        workStart: trade==="kerites" ? (fields.workStart||"") : "",
+        workEnd: trade==="kerites" ? (fields.workEnd||"") : "",
+        comment: fields.comment || "",
+        submittedAt: new Date().toISOString()
+      };
+      toSave.push(entry);
+    });
+    toSave.forEach(function(entry){
+      var idx = STATE.entries.findIndex(function(x){ return x.personId===person.id && x.date===entry.date; });
+      if (idx>=0) STATE.entries[idx] = entry; else STATE.entries.push(entry);
+    });
+    if (!toSave.length){ toast("Nincs menteni való változás."); return; }
+    saveEntries(toSave, function(){ toast("Havi táblázat mentve."); render(); });
+  };
+  wireNav();
+}
+
+function buildPayrollTab(people, trade, month){
+  var grand = 0;
+  var rows = people.map(function(p){
+    var piece = monthPieceTotal(p.id, month);
+    var extras = STATE.extras.filter(function(x){ return x.personId===p.id && x.month===month; });
+    var extrasTotal = extras.reduce(function(s,x){ return s+(x.amount||0); },0);
+    var wd = monthEntries(p.id, month).filter(function(e){ return e.dayType==="work"; }).length;
+    var vd = monthEntries(p.id, month).filter(function(e){ return e.dayType==="vacation"; }).length;
+    var sd = monthEntries(p.id, month).filter(function(e){ return e.dayType==="sick"; }).length;
+    var topUpHours = 0;
+    if (trade === "kerites"){
+      monthEntries(p.id, month).forEach(function(e){
+        if (e.dayType==="work") topUpHours += keritesHourBreakdown(e).topUp;
+      });
+    }
+    grand += piece + extrasTotal;
+    return '<tr><td><strong>'+escapeHtml(p.name)+'</strong><div class="muted" style="font-size:.76rem">'+wd+' munkanap · '+vd+' szabadság · '+sd+' beteg'+(topUpHours>0.001?' · '+topUpHours.toFixed(1)+' óra pótlás':'')+'</div></td>' +
+      '<td class="mono">'+fmtFt(piece)+'</td>' +
+      '<td><div class="extras-list" data-person="'+p.id+'">' +
+        extras.map(function(x){
+          return '<div class="extra-row"><input type="text" value="'+escapeHtml(x.label)+'" data-extra-label="'+x.id+'">' +
+            '<input type="number" value="'+x.amount+'" data-extra-amount="'+x.id+'">' +
+            '<button class="small-btn danger" data-extra-del="'+x.id+'">✕</button></div>';
+        }).join("") +
+        '<button class="small-btn" data-extra-add="'+p.id+'">+ Tétel</button>' +
+      '</div></td>' +
+      '<td class="mono"><strong>'+fmtFt(piece+extrasTotal)+'</strong></td>' +
+      '</tr>';
+  }).join("");
+  return '<h1 class="admin-h1">Bérszámítás — '+month+'</h1>' +
+    '<div class="stat-row"><div class="stat-tile"><span class="n mono">'+fmtFt(grand)+'</span><span class="l">Havi összesen ('+(trade==="ajto"?"ajtó":"kerítés")+')</span></div></div>' +
+    '<div class="matrix-scroll"><table class="summary-table"><thead><tr><th>Szerelő</th><th>Teljesítmény</th><th>Extra tételek</th><th>Végösszeg</th></tr></thead>' +
+    '<tbody>'+rows+'</tbody>' +
+    '<tfoot><tr><td>Összesen</td><td></td><td></td><td class="mono">'+fmtFt(grand)+'</td></tr></tfoot></table></div>';
+}
+function wirePayrollTab(people, trade, month){
+  document.querySelectorAll("[data-extra-add]").forEach(function(btn){
+    btn.onclick = function(){
+      var ex = { id: uid(), personId: btn.getAttribute("data-extra-add"), month: month, label: "Új tétel", amount: 0 };
+      STATE.extras.push(ex);
+      sb("extras", { method:"POST", body:{ id:ex.id, person_id:ex.personId, month:ex.month, label:ex.label, amount:ex.amount }, prefer:"return=minimal" })
+        .then(function(){ render(); })
+        .catch(sbFail);
+    };
+  });
+  document.querySelectorAll("[data-extra-del]").forEach(function(btn){
+    btn.onclick = function(){
+      var id = btn.getAttribute("data-extra-del");
+      STATE.extras = STATE.extras.filter(function(x){ return x.id!==id; });
+      sb("extras?id=eq."+encodeURIComponent(id), { method:"PATCH", body:{deleted_at:new Date().toISOString()}, prefer:"return=minimal" })
+        .then(function(){ render(); })
+        .catch(sbFail);
+    };
+  });
+  function saveExtrasFromDom(){
+    document.querySelectorAll("[data-extra-label]").forEach(function(inp){
+      var x = STATE.extras.find(function(e){ return e.id===inp.getAttribute("data-extra-label"); });
+      if (x) x.label = inp.value;
+    });
+    document.querySelectorAll("[data-extra-amount]").forEach(function(inp){
+      var x = STATE.extras.find(function(e){ return e.id===inp.getAttribute("data-extra-amount"); });
+      if (x) x.amount = parseFloat(inp.value)||0;
+    });
+  }
+  document.querySelectorAll("[data-extra-label],[data-extra-amount]").forEach(function(inp){
+    inp.onblur = function(){
+      saveExtrasFromDom();
+      var id = inp.getAttribute("data-extra-label") || inp.getAttribute("data-extra-amount");
+      var x = STATE.extras.find(function(e){ return e.id===id; });
+      if (!x) return;
+      sb("extras?id=eq."+encodeURIComponent(id), { method:"PATCH", body:{label:x.label, amount:x.amount}, prefer:"return=minimal" })
+        .then(function(){ render(); })
+        .catch(sbFail);
+    };
+  });
+}
+
+function buildPeopleTab(people, trade){
+  var rows = people.map(function(p){
+    return '<div class="people-edit-row">' +
+      '<input type="text" data-p-name="'+p.id+'" value="'+escapeHtml(p.name)+'">' +
+      ('<select data-p-role="'+p.id+'">' +
+          '<option value=""'+(!p.role?" selected":"")+'>— válassz —</option>' +
+          '<option value="Vezető szerelő"'+(p.role==="Vezető szerelő"?" selected":"")+'>Vezető szerelő</option>' +
+          '<option value="Segéd szerelő"'+(p.role==="Segéd szerelő"?" selected":"")+'>Segéd szerelő</option>' +
+        '</select>') +
+      (trade==="ajto"
+        ? '<input type="number" data-p-travel="'+p.id+'" value="'+(p.travelFeePerDay||0)+'" placeholder="útiköltség/nap">'
+        : '<input type="number" data-p-rate="'+p.id+'" value="'+(p.hourlyRate||0)+'" placeholder="Ft/óra">') +
+      '<label style="display:flex;align-items:center;gap:.3rem;text-transform:none;font-weight:500;"><input type="checkbox" style="width:auto" data-p-active="'+p.id+'" '+(p.active!==false?"checked":"")+'>aktív</label>' +
+      '<button class="small-btn" data-p-resetpin="'+p.id+'">'+(p.pin?"Kód törlése":"Nincs még kódja")+'</button>' +
+      '</div>';
+  }).join("");
+  return '<h1 class="admin-h1">Szerelők — '+(trade==="ajto"?"ajtó":"kerítés")+'</h1>' +
+    '<div class="card">'+rows+'<button class="ghost" id="a-add-person" style="margin-top:.6rem">+ Új szerelő</button></div>';
+}
+function wirePeopleTab(people, trade){
+  document.getElementById("a-add-person").onclick = function(){
+    var name = prompt("Új szerelő neve:");
+    if (!name) return;
+    var id = name.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");
+    var np = { id:id, name:name, trade:trade, role:"", active:true };
+    var dbRow = { id:id, name:name, trade:trade, role:null, active:true };
+    if (trade==="ajto"){
+      np.travelFeePerDay=8000; np.prices={};
+      STATE.catalog.ajto.items.forEach(function(it){ np.prices[it.key]=0; });
+      dbRow.travel_fee_per_day = 8000;
+    } else { np.hourlyRate=2200; dbRow.hourly_rate = 2200; }
+    STATE.people.push(np);
+    sb("people", { method:"POST", body:dbRow, prefer:"return=minimal" }).then(function(){
+      if (trade==="ajto"){
+        var priceRows = STATE.catalog.ajto.items.map(function(it){ return { person_id:id, item_key:it.key, price:0 }; });
+        return sb("ajto_prices", { method:"POST", body:priceRows, prefer:"return=minimal" });
+      }
+    }).then(function(){ render(); }).catch(sbFail);
+  };
+  function collectPeopleEdits(){
+    people.forEach(function(p){
+      var n = document.querySelector('[data-p-name="'+p.id+'"]'); if (n) p.name = n.value;
+      var r = document.querySelector('[data-p-role="'+p.id+'"]'); if (r) p.role = r.value;
+      var t = document.querySelector('[data-p-travel="'+p.id+'"]'); if (t) p.travelFeePerDay = parseFloat(t.value)||0;
+      var hr = document.querySelector('[data-p-rate="'+p.id+'"]'); if (hr) p.hourlyRate = parseFloat(hr.value)||0;
+      var a = document.querySelector('[data-p-active="'+p.id+'"]'); if (a) p.active = a.checked;
+    });
+  }
+  document.querySelectorAll('[data-p-name],[data-p-travel],[data-p-rate]').forEach(function(inp){
+    inp.onblur = function(){
+      collectPeopleEdits();
+      var id = inp.getAttribute("data-p-name")||inp.getAttribute("data-p-travel")||inp.getAttribute("data-p-rate");
+      var p = getPerson(id);
+      var fields = { name: p.name };
+      if (trade==="ajto") fields.travel_fee_per_day = p.travelFeePerDay; else fields.hourly_rate = p.hourlyRate;
+      sb("people?id=eq."+encodeURIComponent(id), { method:"PATCH", body:fields, prefer:"return=minimal" })
+        .then(function(){ render(); }).catch(sbFail);
+    };
+  });
+  document.querySelectorAll('[data-p-active],[data-p-role]').forEach(function(inp){
+    inp.onchange = function(){
+      collectPeopleEdits();
+      var id = inp.getAttribute("data-p-active")||inp.getAttribute("data-p-role");
+      var p = getPerson(id);
+      sb("people?id=eq."+encodeURIComponent(id), { method:"PATCH", body:{active:p.active, role:roleToKey(p.role)}, prefer:"return=minimal" })
+        .then(function(){ render(); }).catch(sbFail);
+    };
+  });
+  document.querySelectorAll('[data-p-resetpin]').forEach(function(btn){
+    btn.onclick = function(){
+      var p = getPerson(btn.getAttribute("data-p-resetpin"));
+      if (!p || !p.pin) return;
+      if (!confirm("Törlöd "+p.name+" kódját? Legközelebb új kódot fog beállítani.")) return;
+      delete p.pin;
+      sb("people?id=eq."+encodeURIComponent(p.id), { method:"PATCH", body:{pin:null}, prefer:"return=minimal" })
+        .then(function(){ render(); }).catch(sbFail);
+    };
+  });
+}
+
+function buildPricingTab(people, trade){
+  var priceCols = trade==="ajto"
+    ? people.map(function(p){ return '<th>'+escapeHtml(p.name.split(" ")[0])+' (Ft)</th>'; }).join("")
+    : '<th>Óra/db</th>';
+  function priceRow(it){
+    var cells = trade==="ajto"
+      ? people.map(function(p){ return '<td><input type="number" step="0.01" data-price-person="'+p.id+'" data-price-key="'+it.key+'" value="'+(p.prices[it.key]||0)+'"></td>'; }).join("")
+      : '<td><input type="number" step="0.001" data-hours-key="'+it.key+'" value="'+it.hoursPerUnit+'"></td>';
+    return '<tr><td>'+escapeHtml(it.label)+'</td>'+cells+'</tr>';
+  }
+  var priceRows;
+  if (trade === "ajto"){
+    var colspan = 1 + people.length;
+    priceRows = groupAjtoItems(STATE.catalog.ajto.items).map(function(grp){
+      return '<tr><td colspan="'+colspan+'" style="background:var(--surface-2);font-weight:700;font-size:.78rem;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted)">'+escapeHtml(grp.label)+'</td></tr>' +
+        grp.items.map(priceRow).join("");
+    }).join("");
+  } else {
+    priceRows = STATE.catalog[trade].items.map(priceRow).join("");
+  }
+  var extraRate = trade==="ajto"
+    ? '<div class="field" style="max-width:260px;margin-top:1rem"><label>Összerakási díj (Ft/óra)</label><input type="number" id="a-assembly-rate" value="'+STATE.catalog.ajto.assemblyHourlyRate+'"></div>'
+    : '<div class="row" style="max-width:420px;margin-top:1rem"><div class="field"><label>Fix utazási idő (óra/nap)</label><input type="number" step="0.1" id="a-fixed-utazas" value="'+STATE.catalog.kerites.fixedDailyHours.utazas+'"></div>' +
+      '<div class="field"><label>Fix járulékos idő (óra/nap)</label><input type="number" step="0.1" id="a-fixed-jarulekos" value="'+STATE.catalog.kerites.fixedDailyHours.jarulekos+'"></div></div>';
+  return '<h1 class="admin-h1">Árazás — '+(trade==="ajto"?"ajtó":"kerítés")+'</h1>' +
+    '<div class="matrix-scroll"><table class="summary-table"><thead><tr><th>Tétel</th>'+priceCols+'</tr></thead><tbody>'+priceRows+'</tbody></table></div>' +
+    extraRate + '<button class="ghost" id="a-save-pricing" style="margin-top:.8rem">Árazás mentése</button>';
+}
+function wirePricingTab(people, trade){
+  document.getElementById("a-save-pricing").onclick = function(){
+    if (trade==="ajto"){
+      var priceRows = [];
+      document.querySelectorAll('[data-price-person]').forEach(function(inp){
+        var p = getPerson(inp.getAttribute("data-price-person"));
+        var key = inp.getAttribute("data-price-key");
+        var val = parseFloat(inp.value)||0;
+        if (p) p.prices[key] = val;
+        priceRows.push({ person_id: (p?p.id:inp.getAttribute("data-price-person")), item_key:key, price:val });
+      });
+      STATE.catalog.ajto.assemblyHourlyRate = parseFloat(document.getElementById("a-assembly-rate").value)||0;
+      Promise.all([
+        sbUpsert("ajto_prices", priceRows, "person_id,item_key"),
+        sb("settings?id=eq.1", { method:"PATCH", body:{assembly_hourly_rate: STATE.catalog.ajto.assemblyHourlyRate}, prefer:"return=minimal" })
+      ]).then(function(){ toast("Árazás mentve."); render(); }).catch(sbFail);
+    } else {
+      var hourRows = [];
+      document.querySelectorAll('[data-hours-key]').forEach(function(inp){
+        var it = STATE.catalog.kerites.items.find(function(x){ return x.key===inp.getAttribute("data-hours-key"); });
+        var val = parseFloat(inp.value)||0;
+        if (it) it.hoursPerUnit = val;
+        hourRows.push({ key: inp.getAttribute("data-hours-key"), hours_per_unit: val });
+      });
+      STATE.catalog.kerites.fixedDailyHours.utazas = parseFloat(document.getElementById("a-fixed-utazas").value)||0;
+      STATE.catalog.kerites.fixedDailyHours.jarulekos = parseFloat(document.getElementById("a-fixed-jarulekos").value)||0;
+      Promise.all([
+        Promise.all(hourRows.map(function(r){ return sb("catalog_items?key=eq."+encodeURIComponent(r.key), { method:"PATCH", body:{hours_per_unit:r.hours_per_unit}, prefer:"return=minimal" }); })),
+        sb("settings?id=eq.1", { method:"PATCH", body:{ kerites_utazas_hours: STATE.catalog.kerites.fixedDailyHours.utazas, kerites_jarulekos_hours: STATE.catalog.kerites.fixedDailyHours.jarulekos }, prefer:"return=minimal" })
+      ]).then(function(){ toast("Árazás mentve."); render(); }).catch(sbFail);
+    }
+  };
+}
+
+function buildSettingsTab(){
+  var dp = STATE.dailyPay || { vacation:{vezeto:0,seged:0}, sick:{vezeto:0,seged:0} };
+  return '<h1 class="admin-h1">Beállítások</h1><div class="card" style="max-width:320px">' +
+    '<div class="field"><label>Admin PIN</label><input type="text" id="a-pin" value="'+escapeHtml(STATE.adminPin)+'"></div>' +
+    '<button class="ghost" id="a-save-pin">PIN mentése</button>' +
+    '</div>' +
+    '<div class="card" style="max-width:520px;margin-top:1.2rem">' +
+    '<label>Napidíjak (szerepkör szerint)</label>' +
+    '<p class="muted" style="font-size:.8rem;margin:.2rem 0 .8rem">Ez az összeg számít bele automatikusan a bérszámításba, ha valaki szabadságot vagy betegállományt jelöl be aznapra. A betegállomány alapból 0 Ft-tal indul, amíg nem állítod be.</p>' +
+    '<div class="matrix-scroll"><table class="summary-table"><thead><tr><th></th><th>Szabadság (Ft/nap)</th><th>Betegállomány (Ft/nap)</th></tr></thead><tbody>' +
+    '<tr><td>Vezető szerelő</td><td><input type="number" id="a-pay-vacation-vezeto" value="'+(dp.vacation.vezeto||0)+'"></td><td><input type="number" id="a-pay-sick-vezeto" value="'+(dp.sick.vezeto||0)+'"></td></tr>' +
+    '<tr><td>Segéd szerelő</td><td><input type="number" id="a-pay-vacation-seged" value="'+(dp.vacation.seged||0)+'"></td><td><input type="number" id="a-pay-sick-seged" value="'+(dp.sick.seged||0)+'"></td></tr>' +
+    '</tbody></table></div>' +
+    '<button class="ghost" id="a-save-daily-pay" style="margin-top:.8rem">Napidíjak mentése</button>' +
+    '</div>';
+}
+function wireSettingsTab(){
+  document.getElementById("a-save-pin").onclick = function(){
+    STATE.adminPin = document.getElementById("a-pin").value || STATE.adminPin;
+    sb("settings?id=eq.1", { method:"PATCH", body:{admin_pin:STATE.adminPin}, prefer:"return=minimal" })
+      .then(function(){ toast("PIN frissítve."); })
+      .catch(sbFail);
+  };
+  document.getElementById("a-save-daily-pay").onclick = function(){
+    STATE.dailyPay = {
+      vacation: {
+        vezeto: parseFloat(document.getElementById("a-pay-vacation-vezeto").value) || 0,
+        seged: parseFloat(document.getElementById("a-pay-vacation-seged").value) || 0
+      },
+      sick: {
+        vezeto: parseFloat(document.getElementById("a-pay-sick-vezeto").value) || 0,
+        seged: parseFloat(document.getElementById("a-pay-sick-seged").value) || 0
+      }
+    };
+    var rows = [
+      { role:"vezeto", day_type:"vacation", amount: STATE.dailyPay.vacation.vezeto },
+      { role:"seged", day_type:"vacation", amount: STATE.dailyPay.vacation.seged },
+      { role:"vezeto", day_type:"sick", amount: STATE.dailyPay.sick.vezeto },
+      { role:"seged", day_type:"sick", amount: STATE.dailyPay.sick.seged }
+    ];
+    sbUpsert("daily_pay_rates", rows, "role,day_type")
+      .then(function(){ toast("Napidíjak mentve."); render(); })
+      .catch(sbFail);
+  };
+}
+
+function openEntryModal(personId, date){
+  var person = getPerson(personId);
+  var e = entryFor(personId, date);
+  var body;
+  if (!e){
+    body = '<p class="muted">Nincs rögzített bejegyzés erre a napra.</p>';
+  } else if (e.dayType==="vacation" || e.dayType==="sick"){
+    var pillHtml = e.dayType==="vacation"
+      ? '<span class="pill info">Szabadság</span>'
+      : '<span class="pill" style="background:var(--sick-bg);color:var(--sick)">Betegállomány</span>';
+    body = '<p>'+pillHtml+'</p>' +
+      '<div class="recent-item"><strong>Napidíj</strong><strong class="mono">'+fmtFt(calcEntryValue(e,person))+'</strong></div>' +
+      (roleKey(person.role) ? '' : '<p class="muted" style="font-size:.8rem">Nincs beállítva a szerepköre, ezért 0 Ft-tal számol — állítsd be a Szerelők fülön.</p>') +
+      (e.comment ? '<p style="margin-top:.6rem">"'+escapeHtml(e.comment)+'"</p>' : '');
+  } else {
+    var catalog = STATE.catalog[person.trade];
+    var overrideItem = person.trade==="kerites" ? keritesOverrideItem(e) : null;
+    var rows = catalog.items.filter(function(it){ return !it.override && (e.items||{})[it.key]; })
+      .map(function(it){ return '<div class="recent-item"><span>'+escapeHtml(it.label)+'</span><span class="mono">'+e.items[it.key]+' db</span></div>'; }).join("");
+    var anomaly = isHourAnomaly(e);
+    body = (anomaly && !e.reviewedOk ? '<p class="pill flag" style="margin-bottom:.6rem">⚠ Magas teljesítmény — ellenőrizd, mielőtt kifizeted!</p>' : '') +
+      (anomaly && e.reviewedOk ? '<p class="pill ok" style="margin-bottom:.6rem">✓ Ellenőrizve, rendben találtad</p>' : '') +
+      (e.orderRef? '<p class="muted">Munka: '+escapeHtml(e.orderRef)+'</p>' : '') +
+      (overrideItem ? '<p class="pill info">'+escapeHtml(overrideItem.label)+' nap — '+overrideItem.hoursPerUnit+' óra (fix)</p>' : '') +
+      '<div>'+ (rows || '<p class="muted">Nincs tétel.</p>') + '</div>' +
+      (person.trade==="ajto" && e.assemblyHours ? '<div class="recent-item"><span>Összerakás</span><span class="mono">'+e.assemblyHours+' óra</span></div>' : '') +
+      (person.trade==="kerites" && (e.bontasFestesOra||e.garanciaEgyebOra) ? '<div class="recent-item"><span>Bontás/festés + garancia</span><span class="mono">'+((e.bontasFestesOra||0)+(e.garanciaEgyebOra||0))+' óra</span></div>' : '') +
+      (person.trade==="kerites" ? keritesHoursInfoHtml(e) : '') +
+      '<div class="recent-item"><strong>Érték</strong><strong class="mono">'+fmtFt(calcEntryValue(e,person))+'</strong></div>' +
+      (e.comment ? '<p style="margin-top:.6rem">"'+escapeHtml(e.comment)+'"</p>' : '');
+  }
+  var showReview = e && isHourAnomaly(e);
+  var bg = h('<div class="modal-bg"><div class="modal"><h3>'+escapeHtml(person.name)+' — '+fmtDate(date)+'</h3><div style="margin-top:.7rem">'+body+'</div>' +
+    '<div style="display:flex;gap:.6rem;margin-top:1rem;flex-wrap:wrap"><button class="ghost" id="m-close">Bezár</button>' +
+    (e ? '<button class="ghost" id="m-edit">Szerkesztés</button><button class="ghost danger" id="m-del">Törlés</button>' : '') +
+    (showReview ? '<button class="ghost" id="m-review">'+(e.reviewedOk ? "Ellenőrzés visszavonása" : "Ellenőrizve, rendben")+'</button>' : '') +
+    '</div></div></div>');
+  document.body.appendChild(bg);
+  bg.addEventListener("click", function(ev){ if (ev.target===bg) bg.remove(); });
+  bg.querySelector("#m-close").onclick = function(){ bg.remove(); };
+  if (e){
+    bg.querySelector("#m-edit").onclick = function(){
+      bg.remove();
+      nav.view = "entry"; nav.personId = personId; nav.editDate = date;
+      render();
+    };
+    bg.querySelector("#m-del").onclick = function(){
+      if (!confirm("Biztosan törlöd ezt a bejegyzést?")) return;
+      STATE.entries = STATE.entries.filter(function(x){ return !(x.personId===personId && x.date===date); });
+      bg.remove();
+      deleteEntry(personId, date, function(){ render(); });
+    };
+  }
+  if (showReview){
+    bg.querySelector("#m-review").onclick = function(){
+      e.reviewedOk = !e.reviewedOk;
+      bg.remove();
+      sb("entries?person_id=eq."+encodeURIComponent(personId)+"&date=eq."+date, { method:"PATCH", body:{reviewed_ok:e.reviewedOk}, prefer:"return=minimal" })
+        .then(function(){ render(); })
+        .catch(sbFail);
+    };
+  }
+}
+
+function wireNav(){
+  document.querySelectorAll("[data-nav]").forEach(function(el){
+    el.onclick = function(ev){
+      ev.preventDefault();
+      var target = el.getAttribute("data-nav");
+      if (target === "landing"){ nav.view="landing"; nav.trade=null; nav.personId=null; }
+      else if (target === "names"){ nav.view="names"; }
+      else if (target === "adminpin"){ nav.view="adminpin"; }
+      render();
+    };
+  });
+}
+
+render();
+loadState(function(){ applySavedPerson(); render(); });
+})();
+</script>
