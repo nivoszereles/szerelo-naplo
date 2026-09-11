@@ -663,7 +663,7 @@ function renderEntry(){
   if (!person){ nav.view="landing"; return render(); }
   var date = nav.editDate || todayStr();
   var existing = entryFor(person.id, date) || { items:{}, comment:"", dayType:"work", orderRef:"", assemblyHours:0, bontasFestesOra:0, garanciaEgyebOra:0, workStart:"", workEnd:"" };
-  var minDate = new Date(); minDate.setDate(minDate.getDate()-7);
+  var minDate = new Date(); minDate.setDate(1);
   var minDateStr = minDate.getFullYear()+"-"+pad(minDate.getMonth()+1)+"-"+pad(minDate.getDate());
   var locked = isLocked(person.trade, date.slice(0,7));
 
@@ -786,7 +786,7 @@ function renderEntry(){
     var d = document.getElementById("f-date").value;
     var entryLocked = isLocked(person.trade, d.slice(0,7));
     if (entryLocked){ toast("Ez a hónap le van zárva."); return; }
-    if (!nav.adminAuthed && d < minDateStr){ toast("Ez a nap már több mint 7 napja van — szólj az adminnak, ha módosítani szeretnél rajta."); return; }
+    if (!nav.adminAuthed && d < minDateStr){ toast("Ez a nap már egy korábbi hónapban van — szólj az adminnak, ha módosítani szeretnél rajta."); return; }
     if (person.trade==="kerites" && dayType==="work"){
       var ws = (document.getElementById("f-work-start")||{}).value;
       var we = (document.getElementById("f-work-end")||{}).value;
