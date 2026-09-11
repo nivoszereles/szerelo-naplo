@@ -667,6 +667,22 @@ function renderEntry(){
   var minDateStr = minDate.getFullYear()+"-"+pad(minDate.getMonth()+1)+"-"+pad(minDate.getDate());
   var locked = isLocked(person.trade, date.slice(0,7));
 
+  var curMonth = todayStr().slice(0,7);
+  var curMonthEntries = monthEntries(person.id, curMonth);
+  var curMonthWd = curMonthEntries.filter(function(e){ return e.dayType==="work"; }).length;
+  var curMonthVd = curMonthEntries.filter(function(e){ return e.dayType==="vacation"; }).length;
+  var curMonthSd = curMonthEntries.filter(function(e){ return e.dayType==="sick"; }).length;
+  var curMonthTopUp = 0;
+  if (person.trade === "kerites"){
+    curMonthEntries.forEach(function(e){ if (e.dayType==="work") curMonthTopUp += keritesHourBreakdown(e).topUp; });
+  }
+  var curMonthTotal = monthPieceTotal(person.id, curMonth) + monthExtrasTotal(person.id, curMonth);
+  var monthSummaryHtml = '<div class="section-title"><h2>Ebben a hónapban</h2></div><div class="card">' +
+    '<span class="l" style="color:var(--ink-muted);font-size:.76rem;text-transform:uppercase;letter-spacing:.03em">Kereseted eddig ('+curMonth+')</span>' +
+    '<div class="mono" style="font-size:1.7rem;font-weight:700;margin:.2rem 0 .6rem">'+fmtFt(curMonthTotal)+'</div>' +
+    '<p class="muted">'+curMonthWd+' munkanap · '+curMonthVd+' szabadság · '+curMonthSd+' beteg'+(curMonthTopUp>0.001?' · '+curMonthTopUp.toFixed(1)+' óra pótlás':'')+'</p>' +
+    '</div>';
+
   var catalog = STATE.catalog[person.trade];
   function counterRow(it){
     var q = existing.items[it.key] || 0;
@@ -743,6 +759,7 @@ function renderEntry(){
           '<span><span class="mono">'+fmtFt(val)+'</span> ' +
           '<button class="link" data-edit="'+e.date+'">szerkeszt</button></span></div>';
       }).join("") + '</div>' : '') +
+    monthSummaryHtml +
     '</main>'
   );
 
