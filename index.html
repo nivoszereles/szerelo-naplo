@@ -242,18 +242,6 @@ var nav = { view: "landing", trade: null, personId: null, editDate: null,
   adminAuthed: (sessionStorage.getItem("szn_admin") === "1"),
   adminTrade: "ajto", adminMonth: monthStr(new Date()), adminTab: "overview", adminPersonId: null };
 
-function applySavedPerson(){
-  if (nav.view !== "landing" && nav.view !== "setpin" && nav.view !== "checkpin") return;
-  try {
-    var savedPerson = localStorage.getItem("szn_person");
-    if (savedPerson) {
-      var p = STATE.people.find(function(x){ return x.id === savedPerson; });
-      if (p) { nav.trade = p.trade; nav.personId = p.id; nav.view = p.pin ? "checkpin" : "setpin"; }
-    }
-  } catch(e){}
-}
-applySavedPerson();
-
 /* ---------- HELPERS ---------- */
 function pad(n){ return n<10 ? "0"+n : ""+n; }
 function todayStr(){ var d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
@@ -629,7 +617,6 @@ function renderSetPin(){
     if (v1.length < 4){ toast("Legalább 4 jegyű kódot adj meg."); return; }
     if (v1 !== v2){ toast("A két kód nem egyezik."); return; }
     person.pin = v1;
-    try { localStorage.setItem("szn_person", person.id); } catch(e){}
     sb("people?id=eq."+encodeURIComponent(person.id), { method:"PATCH", body:{pin:v1}, prefer:"return=minimal" })
       .then(function(){ nav.view = "entry"; nav.editDate = null; render(); })
       .catch(sbFail);
@@ -651,7 +638,6 @@ function renderCheckPin(){
   );
   document.getElementById("f-checkpin-go").onclick = function(){
     if (document.getElementById("f-checkpin").value.trim() === person.pin){
-      try { localStorage.setItem("szn_person", person.id); } catch(e){}
       nav.view = "entry"; nav.editDate = null; render();
     } else { toast("Helytelen kód."); }
   };
@@ -1459,6 +1445,6 @@ function wireNav(){
 }
 
 render();
-loadState(function(){ applySavedPerson(); render(); });
+loadState(function(){ render(); });
 })();
 </script>
