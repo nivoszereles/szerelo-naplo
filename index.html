@@ -260,6 +260,7 @@ function smoothScrollToTop(duration){
   duration = duration || 450;
   var startY = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop;
   if (startY <= 0) return;
+  if (document.hidden){ window.scrollTo(0,0); return; }
   var startTime = null;
   function easeOutQuad(t){ return t * (2 - t); }
   function step(ts){
