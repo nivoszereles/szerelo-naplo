@@ -256,6 +256,22 @@ function fmtDateFull(iso){ var p=iso.split("-"); return p[0]+"."+p[1]+"."+p[2]+"
 function diffDays(a,b){ return Math.round((new Date(a)-new Date(b))/86400000); }
 function weekday(ym,day){ return new Date(parseInt(ym.split("-")[0]),parseInt(ym.split("-")[1])-1,day).getDay(); }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function smoothScrollToTop(duration){
+  duration = duration || 450;
+  var startY = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop;
+  if (startY <= 0) return;
+  var startTime = null;
+  function easeOutQuad(t){ return t * (2 - t); }
+  function step(ts){
+    if (startTime === null) startTime = ts;
+    var elapsed = ts - startTime;
+    var progress = Math.min(elapsed / duration, 1);
+    var y = startY * (1 - easeOutQuad(progress));
+    window.scrollTo(0, y);
+    if (progress < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
 function getPerson(id){ return STATE.people.find(function(p){ return p.id===id; }); }
 function isLocked(trade,month){ return STATE.monthLocks.some(function(l){ return l.trade===trade && l.month===month && l.locked; }); }
 function entryFor(personId,date){ return STATE.entries.find(function(e){ return e.personId===personId && e.date===date; }); }
@@ -800,7 +816,7 @@ function renderEntry(){
     el.onclick = function(){
       nav.editDate = el.getAttribute("data-edit");
       render();
-      window.scrollTo({ top:0, behavior:"smooth" });
+      smoothScrollToTop();
       var dateField = document.getElementById("f-date-field");
       if (dateField){
         dateField.classList.remove("field-flash");
