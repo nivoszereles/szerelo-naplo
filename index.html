@@ -154,7 +154,7 @@ var APP_CSS = [
 ".day-type-btn{flex:1;padding:.65rem .4rem;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);font-weight:600;font-size:.82rem;cursor:pointer;color:var(--ink-muted);font-family:'Public Sans',sans-serif;}",
 ".day-type-btn.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}",
 ".addr-status-group{display:flex;gap:.5rem;flex-wrap:wrap;}",
-".addr-status-btn{flex:1 1 auto;min-width:104px;padding:.65rem .5rem;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);font-weight:600;font-size:.8rem;cursor:pointer;color:var(--ink-muted);font-family:'Public Sans',sans-serif;line-height:1.25;}",
+".addr-status-btn{flex:1 1 auto;min-width:104px;padding:.65rem .5rem;border-radius:10px;border:2px solid #000;background:var(--surface-2);font-weight:600;font-size:.8rem;cursor:pointer;color:var(--ink-muted);font-family:'Public Sans',sans-serif;line-height:1.25;}",
 ".addr-status-btn.active[data-addrstatus=done]{background:var(--ok);color:#fff;border-color:var(--ok);}",
 ".addr-status-btn.active[data-addrstatus=continue]{background:var(--warn);color:#fff;border-color:var(--warn);}",
 ".addr-status-btn.active[data-addrstatus=problem]{background:var(--flag);color:#fff;border-color:var(--flag);}",
@@ -782,7 +782,7 @@ function renderEntry(){
       '<div class="field"><label>Munkavég</label><input type="time" id="f-work-end" value="'+escapeHtml(existing.workEnd||"")+'"></div>' +
       '</div>';
     addrStatusFieldHtml = '<div class="field" style="margin-top:.9rem"><label>Cím állapota <span style="color:var(--flag)">*</span></label><div class="addr-status-group">' +
-      '<button type="button" class="addr-status-btn" data-addrstatus="done">Kész van a címmel</button>' +
+      '<button type="button" class="addr-status-btn" data-addrstatus="done">Cím befejezve</button>' +
       '<button type="button" class="addr-status-btn" data-addrstatus="continue">Folytatni kell a címet</button>' +
       '<button type="button" class="addr-status-btn" data-addrstatus="problem">Probléma merült fel, megakadt a szerelés</button>' +
       '</div></div>';
@@ -1586,7 +1586,7 @@ function openEntryModal(personId, date){
     var anomaly = isHourAnomaly(e);
     var addrStatusPill = "";
     if (person.trade==="kerites" && e.addressStatus){
-      if (e.addressStatus==="done") addrStatusPill = '<p class="pill ok" style="margin-bottom:.6rem">✓ Kész van a címmel</p>';
+      if (e.addressStatus==="done") addrStatusPill = '<p class="pill ok" style="margin-bottom:.6rem">✓ Cím befejezve</p>';
       else if (e.addressStatus==="continue") addrStatusPill = '<p class="pill warn" style="margin-bottom:.6rem">↻ Folytatni kell a címet</p>';
       else if (e.addressStatus==="problem") addrStatusPill = '<p class="pill flag" style="margin-bottom:.6rem">✕ Probléma merült fel, megakadt a szerelés</p>';
     }
