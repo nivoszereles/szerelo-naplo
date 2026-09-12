@@ -153,6 +153,11 @@ var APP_CSS = [
 ".day-type-group{display:flex;gap:.5rem;}",
 ".day-type-btn{flex:1;padding:.65rem .4rem;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);font-weight:600;font-size:.82rem;cursor:pointer;color:var(--ink-muted);font-family:'Public Sans',sans-serif;}",
 ".day-type-btn.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}",
+".addr-status-group{display:flex;gap:.5rem;flex-wrap:wrap;}",
+".addr-status-btn{flex:1 1 auto;min-width:104px;padding:.65rem .5rem;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);font-weight:600;font-size:.8rem;cursor:pointer;color:var(--ink-muted);font-family:'Public Sans',sans-serif;line-height:1.25;}",
+".addr-status-btn.active[data-addrstatus=done]{background:var(--ok);color:#fff;border-color:var(--ok);}",
+".addr-status-btn.active[data-addrstatus=continue]{background:var(--warn);color:#fff;border-color:var(--warn);}",
+".addr-status-btn.active[data-addrstatus=problem]{background:var(--flag);color:#fff;border-color:var(--flag);}",
 ".counter-list{display:flex;flex-direction:column;gap:.5rem;}",
 ".item-group{border:1px solid var(--line);border-radius:12px;padding:.8rem;margin-bottom:.8rem;}",
 ".item-group-title{font-weight:700;font-size:.76rem;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);margin-bottom:.6rem;}",
@@ -503,7 +508,8 @@ function loadState(afterOk){
         items: items, orderRef: row.order_ref||"", assemblyHours: row.assembly_hours||0,
         bontasFestesOra: row.bontas_festes_ora||0, garanciaEgyebOra: row.garancia_egyeb_ora||0,
         workStart: row.work_start ? row.work_start.slice(0,5) : "", workEnd: row.work_end ? row.work_end.slice(0,5) : "",
-        comment: row.comment||"", submittedAt: row.submitted_at, reviewedOk: row.reviewed_ok||false
+        comment: row.comment||"", submittedAt: row.submitted_at, reviewedOk: row.reviewed_ok||false,
+        addressStatus: row.address_status||null
       };
     });
     var extras = (r[6]||[]).map(function(row){ return { id:row.id, personId:row.person_id, month:row.month, label:row.label||"", amount:row.amount||0 }; });
@@ -525,6 +531,7 @@ function dbEntryRow(e){
     work_start: e.workStart || null, work_end: e.workEnd || null,
     comment: e.comment||"", reviewed_ok: !!e.reviewedOk,
     submitted_at: e.submittedAt || new Date().toISOString(),
+    address_status: e.addressStatus || null,
     deleted_at: null
   };
 }
@@ -756,11 +763,17 @@ function renderEntry(){
   }
 
   var timeFields = "";
+  var addrStatusFieldHtml = "";
   if (person.trade === "kerites"){
     timeFields = '<div class="row">' +
       '<div class="field"><label>Munkakezdés</label><input type="time" id="f-work-start" value="'+escapeHtml(existing.workStart||"")+'"></div>' +
       '<div class="field"><label>Munkavég</label><input type="time" id="f-work-end" value="'+escapeHtml(existing.workEnd||"")+'"></div>' +
       '</div>';
+    addrStatusFieldHtml = '<div class="field" style="margin-top:.9rem"><label>Cím állapota <span style="color:var(--flag)">*</span></label><div class="addr-status-group">' +
+      '<button type="button" class="addr-status-btn" data-addrstatus="done">Kész van a címmel</button>' +
+      '<button type="button" class="addr-status-btn" data-addrstatus="continue">Folytatni kell a címet</button>' +
+      '<button type="button" class="addr-status-btn" data-addrstatus="problem">Probléma merült fel, megakadt a szerelés</button>' +
+      '</div></div>';
   }
 
   var recent = STATE.entries.filter(function(e){ return e.personId===person.id; })
@@ -781,6 +794,7 @@ function renderEntry(){
     timeFields +
     (itemsLabel ? '<label>'+itemsLabel+'</label>' : '') + counters +
     extraFields +
+    addrStatusFieldHtml +
     '</div>' +
     '<div class="field" style="margin-top:.9rem"><label>Megjegyzés</label><textarea id="f-comment" placeholder="Bármi, amit jelezni szeretnél...">'+escapeHtml(existing.comment||"")+'</textarea></div>' +
     '<button class="primary" id="f-save"'+(locked?" disabled":"")+'>Mentés</button>' +
@@ -798,6 +812,7 @@ function renderEntry(){
   );
 
   var dayType = existing.dayType || "work";
+  var addressStatus = existing.addressStatus || null;
   var anomalyChecked = false;
   function syncDayTypeUi(){
     document.querySelectorAll(".day-type-btn").forEach(function(b){
@@ -805,9 +820,18 @@ function renderEntry(){
     });
     document.getElementById("work-fields").style.display = dayType==="work" ? "" : "none";
   }
+  function syncAddrStatusUi(){
+    document.querySelectorAll(".addr-status-btn").forEach(function(b){
+      b.classList.toggle("active", b.getAttribute("data-addrstatus")===addressStatus);
+    });
+  }
   syncDayTypeUi();
+  syncAddrStatusUi();
   document.querySelectorAll(".day-type-btn").forEach(function(b){
     b.onclick = function(){ dayType = b.getAttribute("data-daytype"); syncDayTypeUi(); };
+  });
+  document.querySelectorAll(".addr-status-btn").forEach(function(b){
+    b.onclick = function(){ addressStatus = b.getAttribute("data-addrstatus"); syncAddrStatusUi(); };
   });
 
   document.querySelectorAll(".counter").forEach(function(row){
@@ -855,6 +879,8 @@ function renderEntry(){
       var we = (document.getElementById("f-work-end")||{}).value;
       if (!ws || !we){ toast("Add meg a munkakezdés és munkavég időpontját."); return; }
       if (timeToDecimal(we) <= timeToDecimal(ws)){ toast("A munkavégnek később kell lennie, mint a munkakezdésnek."); return; }
+      if (!addressStatus){ toast("Válaszd ki, hogy készen van-e a címmel, folytatni kell, vagy probléma merült fel."); return; }
+      if (addressStatus === "problem" && !document.getElementById("f-comment").value.trim()){ toast("Írd le a Megjegyzésben, hogy milyen probléma merült fel."); return; }
     }
     var items = {};
     document.querySelectorAll(".counter").forEach(function(row){
@@ -873,6 +899,7 @@ function renderEntry(){
       workStart: person.trade==="kerites" ? ((document.getElementById("f-work-start")||{}).value || "") : "",
       workEnd: person.trade==="kerites" ? ((document.getElementById("f-work-end")||{}).value || "") : "",
       comment: document.getElementById("f-comment").value,
+      addressStatus: (person.trade==="kerites" && dayType==="work") ? addressStatus : null,
       submittedAt: new Date().toISOString()
     };
     function doSave(){
@@ -1005,7 +1032,7 @@ function renderAdmin(){
 
 function buildOverviewTab(people, trade, month){
   var dim = daysInMonth(month), today = todayStr();
-  var worked=0, vac=0, sick=0, missing=0, anomaly=0;
+  var worked=0, vac=0, sick=0, missing=0, anomaly=0, addrContinue=0, addrProblem=0;
   var matrixHead = '<th class="name-col">Szerelő</th>' +
     Array.from({length:dim},function(_,i){ return i+1; }).map(function(d){
       return '<th'+(weekday(month,d)===0||weekday(month,d)===6?' class="wknd"':'')+'>'+d+'</th>';
@@ -1019,6 +1046,8 @@ function buildOverviewTab(people, trade, month){
       if (e){
         if (e.dayType==="vacation"){ mark='<span title="Szabadság">✈</span>'; vac++; }
         else if (e.dayType==="sick"){ mark='<span style="color:var(--sick)" title="Betegállomány">✚</span>'; sick++; }
+        else if (trade==="kerites" && e.addressStatus==="problem"){ mark='<span style="color:var(--flag)" title="Probléma merült fel, megakadt a szerelés">✕</span>'; worked++; addrProblem++; }
+        else if (trade==="kerites" && e.addressStatus==="continue"){ mark='<span style="color:var(--warn)" title="Folytatni kell a címet">↻</span>'; worked++; addrContinue++; }
         else if (isHourAnomaly(e) && !e.reviewedOk){ mark='<span style="color:var(--flag)" title="Magas teljesítmény — ellenőrizd!">⚠</span>'; worked++; anomaly++; }
         else { mark='<span style="color:var(--ok)" title="Rögzítve">●</span>'; worked++; }
       }
@@ -1035,9 +1064,11 @@ function buildOverviewTab(people, trade, month){
     '<div class="stat-tile"><span class="n mono" style="color:var(--sick)">'+sick+'</span><span class="l">Betegállomány</span></div>' +
     '<div class="stat-tile"><span class="n mono" style="color:var(--warn)">'+missing+'</span><span class="l">Hiányzó nap</span></div>' +
     (trade==="kerites" ? '<div class="stat-tile"><span class="n mono" style="color:var(--flag)">'+anomaly+'</span><span class="l">Magas teljesítmény</span></div>' : '') +
+    (trade==="kerites" ? '<div class="stat-tile"><span class="n mono" style="color:var(--warn)">'+addrContinue+'</span><span class="l">Folytatásra vár</span></div>' : '') +
+    (trade==="kerites" ? '<div class="stat-tile"><span class="n mono" style="color:var(--flag)">'+addrProblem+'</span><span class="l">Probléma</span></div>' : '') +
     '</div>' +
     '<div class="matrix-scroll"><table class="matrix"><thead><tr>'+matrixHead+'</tr></thead><tbody>'+matrixRows+'</tbody></table></div>' +
-    '<p class="muted" style="margin-top:.6rem;font-size:.8rem">● rögzítve · ✈ szabadság · ✚ betegállomány · · hiányzik (hétköznap, nincs bejegyzés)'+(trade==="kerites"?' · ⚠ magas teljesítmény — ellenőrizendő':'')+'</p>';
+    '<p class="muted" style="margin-top:.6rem;font-size:.8rem">● rögzítve · ✈ szabadság · ✚ betegállomány · · hiányzik (hétköznap, nincs bejegyzés)'+(trade==="kerites"?' · ⚠ magas teljesítmény — ellenőrizendő · ↻ folytatni kell a címet · ✕ probléma, megakadt a szerelés':'')+'</p>';
 }
 function wireOverviewTab(people, trade, month){
   document.querySelectorAll(".matrix td.cell").forEach(function(td){
@@ -1462,7 +1493,14 @@ function openEntryModal(personId, date){
     var rows = catalog.items.filter(function(it){ return !it.override && (e.items||{})[it.key]; })
       .map(function(it){ return '<div class="recent-item"><span>'+escapeHtml(it.label)+'</span><span class="mono">'+e.items[it.key]+' db</span></div>'; }).join("");
     var anomaly = isHourAnomaly(e);
-    body = (anomaly && !e.reviewedOk ? '<p class="pill flag" style="margin-bottom:.6rem">⚠ Magas teljesítmény — ellenőrizd, mielőtt kifizeted!</p>' : '') +
+    var addrStatusPill = "";
+    if (person.trade==="kerites" && e.addressStatus){
+      if (e.addressStatus==="done") addrStatusPill = '<p class="pill ok" style="margin-bottom:.6rem">✓ Kész van a címmel</p>';
+      else if (e.addressStatus==="continue") addrStatusPill = '<p class="pill warn" style="margin-bottom:.6rem">↻ Folytatni kell a címet</p>';
+      else if (e.addressStatus==="problem") addrStatusPill = '<p class="pill flag" style="margin-bottom:.6rem">✕ Probléma merült fel, megakadt a szerelés</p>';
+    }
+    body = addrStatusPill +
+      (anomaly && !e.reviewedOk ? '<p class="pill flag" style="margin-bottom:.6rem">⚠ Magas teljesítmény — ellenőrizd, mielőtt kifizeted!</p>' : '') +
       (anomaly && e.reviewedOk ? '<p class="pill ok" style="margin-bottom:.6rem">✓ Ellenőrizve, rendben találtad</p>' : '') +
       (e.orderRef? '<p class="muted">Munka: '+escapeHtml(e.orderRef)+'</p>' : '') +
       (overrideItem ? '<p class="pill info">'+escapeHtml(overrideItem.label)+' nap — '+overrideItem.hoursPerUnit+' óra (fix)</p>' : '') +
