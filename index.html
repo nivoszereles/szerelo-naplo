@@ -248,7 +248,8 @@ document.getElementById("app-style").textContent = APP_CSS;
 var STATE = JSON.parse(document.getElementById("app-state").textContent);
 var nav = { view: "landing", trade: null, personId: null, editDate: null, justLoggedIn: false,
   adminAuthed: (sessionStorage.getItem("szn_admin") === "1"),
-  adminTrade: "ajto", adminMonth: monthStr(new Date()), adminTab: "overview", adminPersonId: null };
+  adminTrade: "ajto", adminMonth: monthStr(new Date()), adminTab: "overview", adminPersonId: null,
+  adminYear: new Date().getFullYear() };
 
 /* ---------- HELPERS ---------- */
 function pad(n){ return n<10 ? "0"+n : ""+n; }
@@ -296,6 +297,17 @@ function missingDaysThisMonth(personId){
   return missing;
 }
 function escapeHtml(s){ return (s==null?"":String(s)).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+
+function parseJobId(text, fallbackYear){
+  if (!text) return null;
+  var m = text.match(/(\d+)(?:\s*\/\s*(\d{2,4}))?/);
+  if (!m) return null;
+  var number = parseInt(m[1], 10);
+  var year;
+  if (m[2]) year = m[2].length===2 ? (2000+parseInt(m[2],10)) : parseInt(m[2],10);
+  else year = fallbackYear;
+  return { year: year, number: number, key: year+"-"+number };
+}
 
 var AJTO_GROUP_ORDER = ["ajto","epulet","kiegeszito"];
 var AJTO_GROUP_LABELS = { ajto: "Ajtó típusok", epulet: "Épület típusok", kiegeszito: "Kiegészítők" };
@@ -875,6 +887,7 @@ function renderEntry(){
     if (person.trade==="kerites" && dayType==="work"){
       var orderRefVal = (document.getElementById("f-order")||{}).value || "";
       if (!orderRefVal.trim()){ toast("Add meg a munka/rendelés azonosítót."); return; }
+      if (!/\d/.test(orderRefVal)){ toast("A munka/rendelés azonosítónak tartalmaznia kell egy számot (pl. 1889/26)."); return; }
       var ws = (document.getElementById("f-work-start")||{}).value;
       var we = (document.getElementById("f-work-end")||{}).value;
       if (!ws || !we){ toast("Add meg a munkakezdés és munkavég időpontját."); return; }
@@ -963,17 +976,20 @@ function renderAdminPin(){
 function renderAdmin(){
   if (!nav.adminAuthed){ nav.view="adminpin"; return render(); }
   var trade = nav.adminTrade, month = nav.adminMonth, tab = nav.adminTab || "overview";
+  if (tab==="addresses" && trade!=="kerites") tab = "overview";
   var people = STATE.people.filter(function(p){ return p.trade===trade; });
   var locked = isLocked(trade, month);
   var showMonthFilter = (tab==="overview" || tab==="payroll" || tab==="personMonth");
+  var showYearFilter = (tab==="addresses");
 
   var navItems = [
     { key:"overview", label:"📋 Napló mátrix" },
     { key:"payroll", label:"💰 Bérszámítás" },
     { key:"people", label:"👷 Szerelők" },
-    { key:"pricing", label:"🏷️ Árazás" },
-    { key:"settings", label:"⚙️ Beállítások" }
+    { key:"pricing", label:"🏷️ Árazás" }
   ];
+  if (trade==="kerites") navItems.push({ key:"addresses", label:"🏠 Címek" });
+  navItems.push({ key:"settings", label:"⚙️ Beállítások" });
   var sidebar = '<div class="admin-sidebar">' + navItems.map(function(it){
     return '<button class="admin-nav-btn'+(tab===it.key?" active":"")+'" data-tab="'+it.key+'">'+it.label+'</button>';
   }).join("") + '</div>';
@@ -981,6 +997,9 @@ function renderAdmin(){
   var topbar = '<div class="admin-topbar">' +
     '<select id="a-trade"><option value="ajto"'+(trade==="ajto"?" selected":"")+'>Ajtó</option><option value="kerites"'+(trade==="kerites"?" selected":"")+'>Kerítés</option></select>' +
     (showMonthFilter ? '<input type="month" id="a-month" value="'+month+'">' : '') +
+    (showYearFilter ? '<select id="a-year">' + [nav.adminYear+1, nav.adminYear, nav.adminYear-1, nav.adminYear-2].map(function(y){
+      return '<option value="'+y+'"'+(y===nav.adminYear?" selected":"")+'>'+y+'</option>';
+    }).join("") + '</select>' : '') +
     '<span style="flex:1"></span>' +
     (showMonthFilter ? ((locked ? '<span class="pill warn">Hónap lezárva</span>' : '<span class="pill ok">Nyitott hónap</span>') +
       '<button class="ghost" id="a-lock">'+(locked?"Feloldás":"Hónap lezárása")+'</button>') : '') +
@@ -995,6 +1014,7 @@ function renderAdmin(){
   else if (tab==="people") content = buildPeopleTab(people, trade);
   else if (tab==="pricing") content = buildPricingTab(people, trade);
   else if (tab==="personMonth") content = buildPersonMonthTab(personMonthPerson, month, locked);
+  else if (tab==="addresses") content = buildAddressesTab(nav.adminYear);
   else content = buildSettingsTab();
 
   setRoot(
@@ -1016,6 +1036,9 @@ function renderAdmin(){
         .catch(sbFail);
     };
   }
+  if (showYearFilter){
+    document.getElementById("a-year").onchange = function(){ nav.adminYear = parseInt(this.value,10); render(); };
+  }
   document.querySelectorAll(".admin-nav-btn").forEach(function(btn){
     btn.onclick = function(){ nav.adminTab = btn.getAttribute("data-tab"); render(); };
   });
@@ -1025,6 +1048,7 @@ function renderAdmin(){
   else if (tab==="people") wirePeopleTab(people, trade);
   else if (tab==="pricing") wirePricingTab(people, trade);
   else if (tab==="personMonth") wirePersonMonthTab(personMonthPerson, month, locked);
+  else if (tab==="addresses") wireAddressesTab();
   else wireSettingsTab();
 
   wireNav();
@@ -1078,6 +1102,73 @@ function wireOverviewTab(people, trade, month){
     btn.onclick = function(){ nav.adminPersonId = btn.getAttribute("data-open-person"); nav.adminTab = "personMonth"; render(); };
   });
 }
+
+function buildAddressesTab(year){
+  var unidentified = [];
+  var jobs = {};
+
+  STATE.entries.forEach(function(e){
+    if (e.trade !== "kerites" || e.dayType !== "work") return;
+    var entryYear = parseInt(e.date.slice(0,4), 10);
+    if (entryYear !== year) return;
+    var parsed = parseJobId(e.orderRef, entryYear);
+    if (!parsed){ unidentified.push(e); return; }
+    if (parsed.year !== year) return;
+    if (!jobs[parsed.key]) jobs[parsed.key] = { year: parsed.year, number: parsed.number, entries: [] };
+    jobs[parsed.key].entries.push(e);
+  });
+
+  var jobList = Object.keys(jobs).map(function(k){ return jobs[k]; });
+  jobList.forEach(function(j){
+    j.entries.sort(function(a,b){ return a.date.localeCompare(b.date); });
+    j.firstDate = j.entries[0].date;
+    j.lastDate = j.entries[j.entries.length-1].date;
+    j.dayCount = j.entries.length;
+    var installerIds = [];
+    j.entries.forEach(function(e){ if (installerIds.indexOf(e.personId)===-1) installerIds.push(e.personId); });
+    j.installerNames = installerIds.map(function(id){ var p=getPerson(id); return p?p.name:id; });
+    j.totalHours = 0;
+    j.entries.forEach(function(e){ var b = keritesHourBreakdown(e); j.totalHours += (b.clocked!=null ? Math.max(b.perf,b.clocked) : b.perf); });
+    j.lastStatus = j.entries[j.entries.length-1].addressStatus || null;
+    j.problemComments = j.entries.filter(function(e){ return e.addressStatus==="problem"; }).map(function(e){ return { date:e.date, comment:e.comment }; });
+  });
+
+  jobList.sort(function(a,b){
+    var aLive = a.lastStatus==="continue" || a.lastStatus==="problem";
+    var bLive = b.lastStatus==="continue" || b.lastStatus==="problem";
+    if (aLive !== bLive) return aLive ? -1 : 1;
+    return b.lastDate.localeCompare(a.lastDate);
+  });
+  var liveJobs = jobList.filter(function(j){ return j.lastStatus==="continue" || j.lastStatus==="problem"; });
+  var doneJobs = jobList.filter(function(j){ return !(j.lastStatus==="continue" || j.lastStatus==="problem"); });
+
+  function jobRowHtml(j){
+    var statusPill = j.lastStatus==="problem" ? '<span class="pill flag">Probléma</span>'
+      : j.lastStatus==="continue" ? '<span class="pill warn">Folytatni kell</span>'
+      : j.lastStatus==="done" ? '<span class="pill ok">Kész</span>' : '<span class="pill info">—</span>';
+    return '<div style="padding:.7rem 0;border-bottom:1px solid var(--line)">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:.6rem">' +
+      '<strong>#'+j.number+' ('+j.year+')</strong>' + statusPill +
+      '</div>' +
+      '<div class="muted" style="font-size:.8rem;margin-top:.2rem">'+fmtDateFull(j.firstDate)+' – '+fmtDateFull(j.lastDate)+' · '+j.dayCount+' nap · '+j.totalHours.toFixed(1)+' óra · '+j.installerNames.map(escapeHtml).join(", ")+'</div>' +
+      (j.problemComments.length ? '<div style="font-size:.8rem;color:var(--flag);margin-top:.3rem">'+j.problemComments.map(function(c){ return escapeHtml(fmtDate(c.date))+': "'+escapeHtml(c.comment||"")+'"'; }).join('<br>')+'</div>' : '') +
+      '</div>';
+  }
+
+  var liveHtml = liveJobs.length ? liveJobs.map(jobRowHtml).join("") : '<p class="muted">Nincs jelenleg folytatásra váró vagy problémás cím.</p>';
+  var doneHtml = doneJobs.length ? doneJobs.map(jobRowHtml).join("") : '<p class="muted">Nincs lezárt cím ebben az évben.</p>';
+  var unidentifiedHtml = unidentified.map(function(e){
+    var p = getPerson(e.personId);
+    return '<div class="recent-item"><span>'+fmtDateFull(e.date)+' · '+escapeHtml(p?p.name:e.personId)+'</span><span class="mono">"'+escapeHtml(e.orderRef||"")+'"</span></div>';
+  }).join("");
+
+  return '<h1 class="admin-h1">Címek — '+year+'</h1>' +
+    '<p class="muted" style="margin-bottom:1.2rem">A szerelők által beírt munka/rendelés azonosítók száma alapján összefűzött címek.</p>' +
+    '<div class="section-title"><h2>Élő címek (folytatásra vár / probléma)</h2></div><div class="card">'+liveHtml+'</div>' +
+    '<div class="section-title"><h2>Lezárt címek</h2></div><div class="card">'+doneHtml+'</div>' +
+    (unidentified.length ? '<div class="section-title"><h2>Azonosítatlan bejegyzések (régi, számot nem tartalmazó adat)</h2></div><div class="card">'+unidentifiedHtml+'</div>' : '');
+}
+function wireAddressesTab(){}
 
 function buildPersonMonthTab(person, month, locked){
   var dim = daysInMonth(month);
