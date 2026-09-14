@@ -289,7 +289,7 @@ function missingDaysThisMonth(personId){
   var missing = [];
   for (var d=1; d<=dim; d++){
     var dateStr = month+"-"+pad(d);
-    if (dateStr > today) break;
+    if (dateStr >= today) break;
     var wknd = weekday(month,d)===0 || weekday(month,d)===6;
     if (wknd) continue;
     if (!entryFor(personId, dateStr)) missing.push(dateStr);
@@ -961,7 +961,7 @@ function renderEntry(){
     nav.justLoggedIn = false;
     var missing = missingDaysThisMonth(person.id);
     if (missing.length){
-      var missingListStr = missing.map(fmtDate).join(", ");
+      var missingListStr = missing.map(fmtDateFull).join(", ");
       showConfirmModal(
         "Hiányzó napjaid vannak ebben a hónapban:\n"+missingListStr+"\n\nKérlek, pótold őket, hogy naprakész legyen a naplód!",
         function(){},
