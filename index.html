@@ -631,7 +631,7 @@ function renderLanding(){
     '<div class="big-card" data-trade="ajto"><span class="ico">🚪</span>Ajtó</div>' +
     '<div class="big-card" data-trade="kerites"><span class="ico">🚧</span>Kerítés</div>' +
     '</div></main>' +
-    '<div class="foot-admin"><a href="#" data-nav="adminpin">Admin belépés</a></div>'
+    '<div class="foot-admin"><a href="#" data-nav="adminpin">Admin belépés</a><div style="margin-top:.4rem;font-size:.7rem;opacity:.6">version 1.2</div></div>'
   );
   document.querySelectorAll(".big-card").forEach(function(el){
     el.onclick = function(){ nav.trade = el.getAttribute("data-trade"); nav.view = "names"; render(); };
