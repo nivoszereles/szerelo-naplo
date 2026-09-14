@@ -308,6 +308,24 @@ function parseJobId(text, fallbackYear){
   else year = fallbackYear;
   return { year: year, number: number, key: year+"-"+number };
 }
+function computeKeritesJobStatuses(){
+  var entriesByJob = {};
+  STATE.entries.forEach(function(e){
+    if (e.trade !== "kerites" || e.dayType !== "work") return;
+    var entryYear = parseInt(e.date.slice(0,4), 10);
+    var parsed = parseJobId(e.orderRef, entryYear);
+    if (!parsed) return;
+    if (!entriesByJob[parsed.key]) entriesByJob[parsed.key] = [];
+    entriesByJob[parsed.key].push(e);
+  });
+  var jobs = {};
+  Object.keys(entriesByJob).forEach(function(key){
+    var list = entriesByJob[key].slice().sort(function(a,b){ return a.date.localeCompare(b.date); });
+    var last = list[list.length-1];
+    jobs[key] = { status: last.addressStatus || null, lastDate: last.date };
+  });
+  return jobs;
+}
 
 var AJTO_GROUP_ORDER = ["ajto","epulet","kiegeszito"];
 var AJTO_GROUP_LABELS = { ajto: "Ajtó típusok", epulet: "Épület típusok", kiegeszito: "Kiegészítők" };
@@ -1056,7 +1074,15 @@ function renderAdmin(){
 
 function buildOverviewTab(people, trade, month){
   var dim = daysInMonth(month), today = todayStr();
-  var worked=0, vac=0, sick=0, missing=0, anomaly=0, addrContinue=0, addrProblem=0;
+  var worked=0, vac=0, sick=0, missing=0, anomaly=0;
+  var jobStatuses = trade==="kerites" ? computeKeritesJobStatuses() : {};
+  var openAddrCount = 0, problemAddrCount = 0;
+  if (trade==="kerites"){
+    Object.keys(jobStatuses).forEach(function(k){
+      if (jobStatuses[k].status==="continue") openAddrCount++;
+      else if (jobStatuses[k].status==="problem") problemAddrCount++;
+    });
+  }
   var matrixHead = '<th class="name-col">Szerelő</th>' +
     Array.from({length:dim},function(_,i){ return i+1; }).map(function(d){
       return '<th'+(weekday(month,d)===0||weekday(month,d)===6?' class="wknd"':'')+'>'+d+'</th>';
@@ -1070,10 +1096,18 @@ function buildOverviewTab(people, trade, month){
       if (e){
         if (e.dayType==="vacation"){ mark='<span title="Szabadság">✈</span>'; vac++; }
         else if (e.dayType==="sick"){ mark='<span style="color:var(--sick)" title="Betegállomány">✚</span>'; sick++; }
-        else if (trade==="kerites" && e.addressStatus==="problem"){ mark='<span style="color:var(--flag)" title="Probléma merült fel, megakadt a szerelés">✕</span>'; worked++; addrProblem++; }
-        else if (trade==="kerites" && e.addressStatus==="continue"){ mark='<span style="color:var(--warn)" title="Folytatni kell a címet">↻</span>'; worked++; addrContinue++; }
-        else if (isHourAnomaly(e) && !e.reviewedOk){ mark='<span style="color:var(--flag)" title="Magas teljesítmény — ellenőrizd!">⚠</span>'; worked++; anomaly++; }
-        else { mark='<span style="color:var(--ok)" title="Rögzítve">●</span>'; worked++; }
+        else {
+          var jobStatus = null;
+          if (trade==="kerites"){
+            var parsed = parseJobId(e.orderRef, parseInt(e.date.slice(0,4),10));
+            if (parsed && jobStatuses[parsed.key]) jobStatus = jobStatuses[parsed.key].status;
+          }
+          if (trade==="kerites" && jobStatus==="done" && e.addressStatus!=="done"){ mark='<span style="color:var(--ok)" title="Rögzítve — a cím időközben befejeződött">●</span>'; worked++; }
+          else if (trade==="kerites" && e.addressStatus==="problem"){ mark='<span style="color:var(--flag)" title="Probléma merült fel, megakadt a szerelés">✕</span>'; worked++; }
+          else if (trade==="kerites" && e.addressStatus==="continue"){ mark='<span style="color:var(--warn)" title="Folytatni kell a címet">↻</span>'; worked++; }
+          else if (isHourAnomaly(e) && !e.reviewedOk){ mark='<span style="color:var(--flag)" title="Magas teljesítmény — ellenőrizd!">⚠</span>'; worked++; anomaly++; }
+          else { mark='<span style="color:var(--ok)" title="Rögzítve">●</span>'; worked++; }
+        }
       }
       else if (dateStr <= today && !wknd) { mark = '<span style="color:var(--warn)" title="Hiányzik">·</span>'; missing++; }
       return '<td class="'+cls+'" data-person="'+p.id+'" data-date="'+dateStr+'">'+mark+'</td>';
@@ -1088,8 +1122,8 @@ function buildOverviewTab(people, trade, month){
     '<div class="stat-tile"><span class="n mono" style="color:var(--sick)">'+sick+'</span><span class="l">Betegállomány</span></div>' +
     '<div class="stat-tile"><span class="n mono" style="color:var(--warn)">'+missing+'</span><span class="l">Hiányzó nap</span></div>' +
     (trade==="kerites" ? '<div class="stat-tile"><span class="n mono" style="color:var(--flag)">'+anomaly+'</span><span class="l">Magas teljesítmény</span></div>' : '') +
-    (trade==="kerites" ? '<div class="stat-tile"><span class="n mono" style="color:var(--warn)">'+addrContinue+'</span><span class="l">Folytatásra vár</span></div>' : '') +
-    (trade==="kerites" ? '<div class="stat-tile"><span class="n mono" style="color:var(--flag)">'+addrProblem+'</span><span class="l">Probléma</span></div>' : '') +
+    (trade==="kerites" ? '<div class="stat-tile"><span class="n mono" style="color:var(--warn)">'+openAddrCount+'</span><span class="l">Címre vissza kell menni</span></div>' : '') +
+    (trade==="kerites" ? '<div class="stat-tile"><span class="n mono" style="color:var(--flag)">'+problemAddrCount+'</span><span class="l">Problémás cím</span></div>' : '') +
     '</div>' +
     '<div class="matrix-scroll"><table class="matrix"><thead><tr>'+matrixHead+'</tr></thead><tbody>'+matrixRows+'</tbody></table></div>' +
     '<p class="muted" style="margin-top:.6rem;font-size:.8rem">● rögzítve · ✈ szabadság · ✚ betegállomány · · hiányzik (hétköznap, nincs bejegyzés)'+(trade==="kerites"?' · ⚠ magas teljesítmény — ellenőrizendő · ↻ folytatni kell a címet · ✕ probléma, megakadt a szerelés':'')+'</p>';
