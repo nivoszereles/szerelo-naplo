@@ -281,6 +281,15 @@ function smoothScrollToTop(duration){
 }
 function getPerson(id){ return STATE.people.find(function(p){ return p.id===id; }); }
 function isLocked(trade,month){ return STATE.monthLocks.some(function(l){ return l.trade===trade && l.month===month && l.locked; }); }
+function minEditableDateStr(trade){
+  var curMonthStart = new Date(); curMonthStart.setDate(1);
+  var prevMonthStart = new Date(curMonthStart); prevMonthStart.setMonth(prevMonthStart.getMonth()-1);
+  var prevMonth = prevMonthStart.getFullYear()+"-"+pad(prevMonthStart.getMonth()+1);
+  if (!isLocked(trade, prevMonth)){
+    return prevMonth+"-01";
+  }
+  return curMonthStart.getFullYear()+"-"+pad(curMonthStart.getMonth()+1)+"-01";
+}
 function entryFor(personId,date){ return STATE.entries.find(function(e){ return e.personId===personId && e.date===date; }); }
 function missingDaysThisMonth(personId){
   var today = todayStr();
@@ -730,8 +739,7 @@ function renderEntry(){
   if (!person){ nav.view="landing"; return render(); }
   var date = nav.editDate || todayStr();
   var existing = entryFor(person.id, date) || { items:{}, comment:"", dayType:"work", orderRef:"", assemblyHours:0, bontasFestesOra:0, garanciaEgyebOra:0, workStart:"", workEnd:"" };
-  var minDate = new Date(); minDate.setDate(1);
-  var minDateStr = minDate.getFullYear()+"-"+pad(minDate.getMonth()+1)+"-"+pad(minDate.getDate());
+  var minDateStr = minEditableDateStr(person.trade);
   var locked = isLocked(person.trade, date.slice(0,7));
 
   var curMonth = todayStr().slice(0,7);
