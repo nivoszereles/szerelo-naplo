@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
@@ -200,6 +201,8 @@ var APP_CSS = [
 "table.matrix td.wknd{background:var(--surface-2);}",
 "table.matrix td.cell{cursor:pointer;font-size:.95rem;}",
 "table.matrix td.cell:hover{outline:2px solid var(--accent);outline-offset:-2px;}",
+"table.matrix td.cell.multiday{border-top:2px solid var(--accent);}",
+"table.matrix .md-badge{display:block;font-size:.55rem;line-height:1.1;color:var(--accent);font-weight:600;margin-top:1px;}",
 "table.matrix tr.wknd td{background:var(--surface-2);}",
 "table.matrix tr.flagrow td{background:var(--flag-bg);}",
 ".pm-table td.name-col,.pm-table th.name-col{min-width:44px;}",
@@ -1095,6 +1098,28 @@ function buildOverviewTab(people, trade, month){
     Array.from({length:dim},function(_,i){ return i+1; }).map(function(d){
       return '<th'+(weekday(month,d)===0||weekday(month,d)===6?' class="wknd"':'')+'>'+d+'</th>';
     }).join("");
+  var multidayInfo = {};
+  if (trade==="kerites"){
+    people.forEach(function(p){
+      var byKey = {};
+      for (var d=1; d<=dim; d++){
+        var dateStr = month+"-"+pad(d);
+        var e = entryFor(p.id, dateStr);
+        if (!e || e.dayType!=="work") continue;
+        var parsed = parseJobId(e.orderRef, parseInt(e.date.slice(0,4),10));
+        if (!parsed) continue;
+        if (!byKey[parsed.key]) byKey[parsed.key] = [];
+        byKey[parsed.key].push(dateStr);
+      }
+      var info = {};
+      Object.keys(byKey).forEach(function(key){
+        var dates = byKey[key];
+        if (dates.length < 2) return;
+        dates.forEach(function(dateStr, idx){ info[dateStr] = { pos: idx+1, total: dates.length }; });
+      });
+      multidayInfo[p.id] = info;
+    });
+  }
   var matrixRows = people.map(function(p){
     var cells = Array.from({length:dim},function(_,i){ return i+1; }).map(function(d){
       var dateStr = month+"-"+pad(d);
@@ -1115,6 +1140,11 @@ function buildOverviewTab(people, trade, month){
           else if (trade==="kerites" && e.addressStatus==="continue"){ mark='<span style="color:var(--warn)" title="Folytatni kell a címet">↻</span>'; worked++; }
           else if (isHourAnomaly(e) && !e.reviewedOk){ mark='<span style="color:var(--flag)" title="Magas teljesítmény — ellenőrizd!">⚠</span>'; worked++; anomaly++; }
           else { mark='<span style="color:var(--ok)" title="Rögzítve">●</span>'; worked++; }
+          var mdInfo = multidayInfo[p.id] && multidayInfo[p.id][dateStr];
+          if (mdInfo){
+            cls += " multiday";
+            mark += '<span class="md-badge" title="Ugyanaz a cím '+mdInfo.total+' napig tartott ebben a hónapban — ez a '+mdInfo.pos+'. nap">'+mdInfo.pos+'/'+mdInfo.total+'</span>';
+          }
         }
       }
       else if (dateStr <= today && !wknd) { mark = '<span style="color:var(--warn)" title="Hiányzik">·</span>'; missing++; }
@@ -1134,7 +1164,7 @@ function buildOverviewTab(people, trade, month){
     (trade==="kerites" ? '<div class="stat-tile"><span class="n mono" style="color:var(--flag)">'+problemAddrCount+'</span><span class="l">Problémás cím</span></div>' : '') +
     '</div>' +
     '<div class="matrix-scroll"><table class="matrix"><thead><tr>'+matrixHead+'</tr></thead><tbody>'+matrixRows+'</tbody></table></div>' +
-    '<p class="muted" style="margin-top:.6rem;font-size:.8rem">● rögzítve · ✈ szabadság · ✚ betegállomány · · hiányzik (hétköznap, nincs bejegyzés)'+(trade==="kerites"?' · ⚠ magas teljesítmény — ellenőrizendő · ↻ folytatni kell a címet · ✕ probléma, megakadt a szerelés':'')+'</p>';
+    '<p class="muted" style="margin-top:.6rem;font-size:.8rem">● rögzítve · ✈ szabadság · ✚ betegállomány · · hiányzik (hétköznap, nincs bejegyzés)'+(trade==="kerites"?' · ⚠ magas teljesítmény — ellenőrizendő · ↻ folytatni kell a címet · ✕ probléma, megakadt a szerelés · kék felső keret + "2/4" jelvény: ugyanaz a cím több napig tartott ebben a hónapban':'')+'</p>';
 }
 function wireOverviewTab(people, trade, month){
   document.querySelectorAll(".matrix td.cell").forEach(function(td){
