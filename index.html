@@ -379,6 +379,7 @@ function keritesOverrideItem(entry){
   }
   return null;
 }
+var KERITES_CREW_ADJUST_CUTOFF = "2026-10-01";
 function keritesHourBreakdown(entry){
   var perf, overrideItem = keritesOverrideItem(entry);
   if (overrideItem){
@@ -388,6 +389,10 @@ function keritesHourBreakdown(entry){
     for (var j=0;j<kitems.length;j++){
       var qk = (entry.items && entry.items[kitems[j].key]) || 0;
       unitHours += qk * kitems[j].hoursPerUnit;
+    }
+    if (STATE.keritesCrewAdjust && entry.date >= KERITES_CREW_ADJUST_CUTOFF){
+      var crew = keritesActualCrewSize(entry) || 2;
+      if (crew >= 3) unitHours = unitHours * (2/crew);
     }
     var fixed = unitHours>0 ? (STATE.catalog.kerites.fixedDailyHours.utazas + STATE.catalog.kerites.fixedDailyHours.jarulekos) : 0;
     perf = unitHours + fixed;
@@ -458,21 +463,6 @@ function keritesActualCrewSize(entry){
   var n = Object.keys(ids).length;
   return n>0 ? n : (entry.crewSize || null);
 }
-function keritesHourBreakdownAdjusted(entry){
-  var overrideItem = keritesOverrideItem(entry);
-  if (overrideItem){
-    return { perf: overrideItem.hoursPerUnit, clocked: workedHoursOf(entry), overrideItem: overrideItem };
-  }
-  var kitems = STATE.catalog.kerites.items, unitHours = 0;
-  for (var j=0;j<kitems.length;j++){
-    var qk = (entry.items && entry.items[kitems[j].key]) || 0;
-    unitHours += qk * kitems[j].hoursPerUnit;
-  }
-  var crew = keritesActualCrewSize(entry) || 2;
-  var adjUnitHours = (crew >= 3) ? unitHours * (2/crew) : unitHours;
-  var fixed = unitHours>0 ? (STATE.catalog.kerites.fixedDailyHours.utazas + STATE.catalog.kerites.fixedDailyHours.jarulekos) : 0;
-  return { perf: adjUnitHours + fixed, clocked: workedHoursOf(entry), overrideItem: null };
-}
 function monthPieceTotalKeritesNew(personId, month){
   var person = getPerson(personId);
   var allEntries = monthEntries(personId, month);
@@ -481,8 +471,8 @@ function monthPieceTotalKeritesNew(personId, month){
     if (e.dayType !== "work"){ total += calcEntryValue(e, person); return; }
     var entryYear = parseInt(e.date.slice(0,4),10);
     var parsed = parseJobId(e.orderRef, entryYear);
-    var b = keritesHourBreakdownAdjusted(e);
-    if (!parsed){
+    var b = keritesHourBreakdown(e);
+    if (!parsed || b.overrideItem){
       var payHours = (b.clocked!=null) ? Math.max(b.perf,b.clocked) : b.perf;
       total += payHours * (person.hourlyRate||0);
       return;
@@ -591,7 +581,7 @@ function loadState(afterOk){
     sb("extras?deleted_at=is.null&select=*"),
     sb("month_locks?select=*")
   ]).then(function(r){
-    var settings = (r[0] && r[0][0]) || { admin_pin:"1234", assembly_hourly_rate:0, kerites_utazas_hours:0, kerites_jarulekos_hours:0, kerites_job_level_pay:false };
+    var settings = (r[0] && r[0][0]) || { admin_pin:"1234", assembly_hourly_rate:0, kerites_utazas_hours:0, kerites_jarulekos_hours:0, kerites_job_level_pay:false, kerites_crew_adjust:true };
     var dailyPay = { vacation:{vezeto:0,seged:0}, sick:{vezeto:0,seged:0} };
     (r[1]||[]).forEach(function(row){ if (dailyPay[row.day_type]) dailyPay[row.day_type][row.role] = row.amount; });
 
@@ -637,7 +627,7 @@ function loadState(afterOk){
     var extras = (r[6]||[]).map(function(row){ return { id:row.id, personId:row.person_id, month:row.month, label:row.label||"", amount:row.amount||0 }; });
     var monthLocks = (r[7]||[]).map(function(row){ return { trade:row.trade, month:row.month, locked:row.locked }; });
 
-    STATE = { adminPin: settings.admin_pin, dailyPay: dailyPay, people: people, catalog: catalog, entries: entries, extras: extras, monthLocks: monthLocks, keritesJobLevelPay: !!settings.kerites_job_level_pay };
+    STATE = { adminPin: settings.admin_pin, dailyPay: dailyPay, people: people, catalog: catalog, entries: entries, extras: extras, monthLocks: monthLocks, keritesJobLevelPay: !!settings.kerites_job_level_pay, keritesCrewAdjust: settings.kerites_crew_adjust!==false };
     if (afterOk) afterOk();
   }).catch(function(err){
     console.error(err);
@@ -1508,7 +1498,7 @@ function buildPayrollTab(people, trade, month){
     '<div class="stat-row"><div class="stat-tile"><span class="n mono">'+fmtFt(STATE.keritesJobLevelPay && showCompare ? grandNew : grand)+'</span><span class="l">Havi összesen ('+(trade==="ajto"?"ajtó":"kerítés")+')'+(showCompare?' — hivatalos: '+(STATE.keritesJobLevelPay?"új":"jelenlegi"):'')+'</span></div>' +
     (showCompare ? '<div class="stat-tile"><span class="n mono" style="color:var(--ink-muted)">'+fmtFt(grand)+'</span><span class="l">Jelenlegi logika szerint</span></div><div class="stat-tile"><span class="n mono">'+fmtFt(grandNew)+'</span><span class="l">Új, munka-szintű logika szerint</span></div><div class="stat-tile"><span class="n mono" style="color:var(--flag)">'+fmtFt(grandDiff)+'</span><span class="l">Különbség</span></div>' : '') +
     '</div>' +
-    (showCompare ? '<p class="muted" style="font-size:.8rem;margin:.6rem 0 1rem">A két oszlop összehasonlításra szolgál — a ténylegesen hivatalosnak számító oszlopot a Beállításoknál lévő kapcsoló dönti el, jelenleg: <strong>'+(STATE.keritesJobLevelPay?"Új, munka-szintű":"Jelenlegi, napi")+'</strong>.</p>' : '') +
+    (showCompare ? '<p class="muted" style="font-size:.8rem;margin:.6rem 0 1rem">A két oszlop összehasonlításra szolgál — a ténylegesen hivatalosnak számító oszlopot a Beállításoknál lévő, munka-szintű kapcsoló dönti el, jelenleg: <strong>'+(STATE.keritesJobLevelPay?"Új, munka-szintű":"Jelenlegi, napi")+'</strong>. A létszámmal korrigált teljesítményóra ettől függetlenül, külön kapcsolóval megy — jelenleg <strong>'+(STATE.keritesCrewAdjust?"bekapcsolva":"kikapcsolva")+'</strong>, 2026.10.01-től mindkét oszlopban érvényesül.</p>' : '') +
     '<div class="matrix-scroll"><table class="summary-table"><thead><tr><th>Szerelő</th><th>Teljesítmény (jelenlegi)</th>'+(showCompare?'<th>Teljesítmény (új, teszt)</th>':'')+'<th>Extra tételek</th><th>Jelenléti bónusz</th><th>Végösszeg (jelenlegi)</th>'+(showCompare?'<th>Végösszeg (új, teszt)</th><th>Különbség</th>':'')+'</tr></thead>' +
     '<tbody>'+rows+'</tbody>' +
     '<tfoot><tr><td>Összesen</td><td></td>'+(showCompare?'<td></td>':'')+'<td></td><td></td><td class="mono">'+fmtFt(grand)+'</td>'+(showCompare?'<td class="mono">'+fmtFt(grandNew)+'</td><td class="mono">'+fmtFt(grandDiff)+'</td>':'')+'</tr></tfoot></table></div>';
@@ -1737,6 +1727,11 @@ function buildSettingsTab(){
     '<div class="switch-row"><div><strong>Munka-szintű, létszámmal korrigált bérszámítás (kerítés)</strong>' +
     '<p class="muted" style="font-size:.78rem;margin-top:.3rem">Bekapcsolva: a kerítés szerelők bére rendelésszámonként, az összes napra összesítve, a ténylegesen azonosított létszámmal korrigálva számolódik — ez lesz a hivatalos összeg mindenhol (a szerelők saját kijelzőjén is), minden még nyitott hónapban. Kikapcsolva: minden a megszokott, napi számítás szerint megy, mint eddig. A Bérszámítás fülön mindig látod mindkét értéket, függetlenül ettől a kapcsolótól.</p></div>' +
     '<div class="toggle'+(STATE.keritesJobLevelPay?" on":"")+'" id="a-joblevel-toggle"></div></div>' +
+    '</div>' +
+    '<div class="card" style="max-width:520px;margin-top:1.2rem">' +
+    '<div class="switch-row"><div><strong>Létszámmal korrigált teljesítményóra (kerítés)</strong>' +
+    '<p class="muted" style="font-size:.78rem;margin-top:.3rem">Bekapcsolva (ez az alapértelmezett): ha egy napon 3 vagy több szerelő dolgozott ugyanazon a rendelésszámon, a teljesítményórát automatikusan a ténylegesen azonosított létszámmal osztjuk el — mindenhol, azonnal hivatalosan (a szerelő saját kijelzőjén, a magas teljesítmény jelzésnél, a bérszámításban is). Ez a kapcsoló független a fenti, munka-szintű (többnapos) kapcsolótól. Csak 2026. október 1-től számol így — a szeptemberi (és korábbi) napokat nem érinti, kikapcsolva pedig mindig a régi, 2 főre számoló logika fut.</p></div>' +
+    '<div class="toggle'+(STATE.keritesCrewAdjust?" on":"")+'" id="a-crewadjust-toggle"></div></div>' +
     '</div>';
 }
 function wireSettingsTab(){
@@ -1773,6 +1768,15 @@ function wireSettingsTab(){
       STATE.keritesJobLevelPay = !STATE.keritesJobLevelPay;
       sb("settings?id=eq.1", { method:"PATCH", body:{kerites_job_level_pay:STATE.keritesJobLevelPay}, prefer:"return=minimal" })
         .then(function(){ toast(STATE.keritesJobLevelPay ? "Az új, munka-szintű számítás a hivatalos mostantól." : "Visszaálltál a jelenlegi, napi számításra."); render(); })
+        .catch(sbFail);
+    };
+  }
+  var crewAdjustToggle = document.getElementById("a-crewadjust-toggle");
+  if (crewAdjustToggle){
+    crewAdjustToggle.onclick = function(){
+      STATE.keritesCrewAdjust = !STATE.keritesCrewAdjust;
+      sb("settings?id=eq.1", { method:"PATCH", body:{kerites_crew_adjust:STATE.keritesCrewAdjust}, prefer:"return=minimal" })
+        .then(function(){ toast(STATE.keritesCrewAdjust ? "A létszámmal korrigált teljesítményóra mostantól automatikusan számol (2026.10.01-től)." : "Visszaálltál: mindenhol a 2 főre számoló, régi logika fut."); render(); })
         .catch(sbFail);
     };
   }
