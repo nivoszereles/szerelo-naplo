@@ -404,6 +404,7 @@ function keritesHourBreakdown(entry){
 function isHourAnomaly(entry){
   if (!entry || entry.trade!=="kerites" || entry.dayType!=="work") return false;
   var b = keritesHourBreakdown(entry);
+  if (b.overrideItem) return false;
   return b.clocked!=null && b.perf > b.clocked * 1.2;
 }
 function keritesHoursInfoHtml(entry){
@@ -1560,7 +1561,7 @@ function buildCrewCheckTab(month){
       '</tr>';
   }).join("");
   return '<h1 class="admin-h1">Létszám-eltérések — '+month+'</h1>' +
-    '<p class="muted" style="margin-bottom:1rem;max-width:62ch">Azok a napok, ahol egy szerelő kevesebb létszámot adott meg, mint ahányan ténylegesen azonosíthatóan ugyanazon a rendelésszámon dolgoztak aznap. A bérszámítás (ha az új, munka-szintű logika be van kapcsolva) mindig a ténylegesen azonosított létszámot veszi figyelembe, nem a bevallottat.</p>' +
+    '<p class="muted" style="margin-bottom:1rem;max-width:62ch">Azok a napok, ahol egy szerelő kevesebb létszámot adott meg, mint ahányan ténylegesen azonosíthatóan ugyanazon a rendelésszámon dolgoztak aznap. Ha a Beállításoknál a "Létszámmal korrigált teljesítményóra" kapcsoló be van kapcsolva, a bérszámítás 2026.10.01-től mindig a ténylegesen azonosított létszámot veszi figyelembe, nem a bevallottat — ez a munka-szintű összesítés kapcsolójától függetlenül érvényes.</p>' +
     (mismatches.length
       ? '<div class="matrix-scroll"><table class="summary-table"><thead><tr><th>Dátum</th><th>Szerelő</th><th>Rendelésszám</th><th>Bevallott létszám</th><th>Ténylegesen azonosított</th><th>Többiek</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
       : '<p class="pill ok">Nincs eltérés ebben a hónapban.</p>');
@@ -1724,8 +1725,8 @@ function buildSettingsTab(){
     '<button class="ghost" id="a-save-daily-pay" style="margin-top:.8rem">Napidíjak mentése</button>' +
     '</div>' +
     '<div class="card" style="max-width:520px;margin-top:1.2rem">' +
-    '<div class="switch-row"><div><strong>Munka-szintű, létszámmal korrigált bérszámítás (kerítés)</strong>' +
-    '<p class="muted" style="font-size:.78rem;margin-top:.3rem">Bekapcsolva: a kerítés szerelők bére rendelésszámonként, az összes napra összesítve, a ténylegesen azonosított létszámmal korrigálva számolódik — ez lesz a hivatalos összeg mindenhol (a szerelők saját kijelzőjén is), minden még nyitott hónapban. Kikapcsolva: minden a megszokott, napi számítás szerint megy, mint eddig. A Bérszámítás fülön mindig látod mindkét értéket, függetlenül ettől a kapcsolótól.</p></div>' +
+    '<div class="switch-row"><div><strong>Munka-szintű (többnapos) bérösszesítés (kerítés)</strong>' +
+    '<p class="muted" style="font-size:.78rem;margin-top:.3rem">Bekapcsolva: a kerítés szerelők bére rendelésszámonként, az összes napra összesítve számolódik (nem naponta külön-külön) — ez lesz a hivatalos összeg mindenhol (a szerelők saját kijelzőjén is), minden még nyitott hónapban. Kikapcsolva: minden a megszokott, napi számítás szerint megy, mint eddig. A létszámmal való korrekciót ez a kapcsoló nem befolyásolja, azt az alább található, külön kapcsoló vezérli. A Bérszámítás fülön mindig látod mindkét értéket, függetlenül ettől a kapcsolótól.</p></div>' +
     '<div class="toggle'+(STATE.keritesJobLevelPay?" on":"")+'" id="a-joblevel-toggle"></div></div>' +
     '</div>' +
     '<div class="card" style="max-width:520px;margin-top:1.2rem">' +
