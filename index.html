@@ -252,18 +252,19 @@ var STATE = JSON.parse(document.getElementById("app-state").textContent);
 var nav = { view: "landing", trade: null, personId: null, editDate: null, justLoggedIn: false,
   adminAuthed: (sessionStorage.getItem("szn_admin") === "1"),
   adminTrade: "ajto", adminMonth: monthStr(new Date()), adminTab: "overview", adminPersonId: null,
-  adminYear: new Date().getFullYear(), reportsMonths: 6 };
+  adminYear: new Date().getFullYear(), reportsMonths: 3, reportsStartMonth: "2026-09" };
 
 /* ---------- HELPERS ---------- */
 function pad(n){ return n<10 ? "0"+n : ""+n; }
 function todayStr(){ var d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
 function monthStr(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1); }
 function daysInMonth(ym){ var parts=ym.split("-"); return new Date(parseInt(parts[0]),parseInt(parts[1]),0).getDate(); }
-function lastNMonths(n){
+function monthRange(startMonth, count){
+  var parts = startMonth.split("-");
+  var y = parseInt(parts[0],10), m = parseInt(parts[1],10)-1;
   var out = [];
-  for (var i=n-1;i>=0;i--){
-    var dt = new Date(); dt.setDate(1); dt.setMonth(dt.getMonth()-i);
-    out.push(monthStr(dt));
+  for (var i=0;i<count;i++){
+    out.push(monthStr(new Date(y, m+i, 1)));
   }
   return out;
 }
@@ -1665,13 +1666,16 @@ function buildProblemJobsSection(year){
 }
 
 function buildReportsTab(people, trade){
-  var monthsBack = nav.reportsMonths || 6;
-  var months = lastNMonths(monthsBack);
+  var monthsCount = nav.reportsMonths || 3;
+  var startMonth = nav.reportsStartMonth || "2026-09";
+  var months = monthRange(startMonth, monthsCount);
   var html = '<h1 class="admin-h1">Kimutatások — '+(trade==="ajto"?"ajtó":"kerítés")+'</h1>';
-  html += '<div class="card" style="max-width:260px;margin-bottom:1rem"><div class="field"><label>Időtáv</label>' +
-    '<select id="rp-range">' +
-    [3,6,12,24].map(function(v){ return '<option value="'+v+'"'+(monthsBack===v?" selected":"")+'>Utolsó '+v+' hónap</option>'; }).join("") +
-    '</select></div></div>';
+  html += '<div class="card" style="max-width:420px;margin-bottom:1rem"><div class="row">' +
+    '<div class="field"><label>Kezdő hónap</label><input type="month" id="rp-start" value="'+startMonth+'"></div>' +
+    '<div class="field"><label>Hány hónap</label><select id="rp-range">' +
+    [3,6,12,24].map(function(v){ return '<option value="'+v+'"'+(monthsCount===v?" selected":"")+'>'+v+' hónap</option>'; }).join("") +
+    '</select></div>' +
+    '</div></div>';
   html += '<div class="section-title"><h2>Havi bér-trend</h2></div>' + buildBerTrendSection(people, trade, months);
   html += '<div class="section-title"><h2>Jelenlét / hiányzás összesítő</h2></div>' + buildAttendanceSection(people, months);
   if (trade==="kerites"){
@@ -1686,7 +1690,9 @@ function buildReportsTab(people, trade){
 }
 function wireReportsTab(){
   var rangeSel = document.getElementById("rp-range");
-  if (rangeSel) rangeSel.onchange = function(){ nav.reportsMonths = parseInt(this.value,10)||6; render(); };
+  if (rangeSel) rangeSel.onchange = function(){ nav.reportsMonths = parseInt(this.value,10)||3; render(); };
+  var startInp = document.getElementById("rp-start");
+  if (startInp) startInp.onchange = function(){ nav.reportsStartMonth = this.value; render(); };
   var yearSel = document.getElementById("rp-year");
   if (yearSel) yearSel.onchange = function(){ nav.adminYear = parseInt(this.value,10); render(); };
   wireNav();
