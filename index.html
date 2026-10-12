@@ -1754,19 +1754,29 @@ function wireProblemJobsSection(){
 function buildProblemTypeChart(months){
   var monthSet = {};
   months.forEach(function(m){ monthSet[m] = true; });
-  var counts = {};
-  KERITES_PROBLEM_TYPES.forEach(function(t){ counts[t] = 0; });
-  var unspecified = 0;
+  var jobTypeSets = {};
   STATE.entries.forEach(function(e){
     if (e.trade!=="kerites" || e.dayType!=="work" || e.addressStatus!=="problem") return;
     if (!monthSet[e.date.slice(0,7)]) return;
-    if (e.problemType && counts.hasOwnProperty(e.problemType)) counts[e.problemType]++;
-    else unspecified++;
+    var entryYear = parseInt(e.date.slice(0,4),10);
+    var parsed = parseJobId(e.orderRef, entryYear);
+    if (!parsed) return;
+    if (!jobTypeSets[parsed.key]) jobTypeSets[parsed.key] = {};
+    var t = (e.problemType && KERITES_PROBLEM_TYPES.indexOf(e.problemType)>=0) ? e.problemType : "Nincs megadva";
+    jobTypeSets[parsed.key][t] = true;
+  });
+  var counts = {};
+  KERITES_PROBLEM_TYPES.forEach(function(t){ counts[t] = 0; });
+  var unspecified = 0;
+  Object.keys(jobTypeSets).forEach(function(key){
+    Object.keys(jobTypeSets[key]).forEach(function(t){
+      if (t==="Nincs megadva") unspecified++; else counts[t]++;
+    });
   });
   var labels = KERITES_PROBLEM_TYPES.slice();
   var values = labels.map(function(t){ return counts[t]; });
   if (unspecified > 0){ labels.push("Nincs megadva"); values.push(unspecified); }
-  return buildBarChart(labels, [{ label:"Esetek száma", values:values, colorVar:"--flag" }]);
+  return buildBarChart(labels, [{ label:"Címek száma", values:values, colorVar:"--flag" }]);
 }
 
 function computeKeritesJobLifecycles(){
