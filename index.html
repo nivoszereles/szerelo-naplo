@@ -1733,12 +1733,11 @@ function computeKeritesJobLifecycles(){
   });
   var result = [];
   Object.keys(jobs).forEach(function(k){
-    var list = jobs[k].slice().sort(function(a,b){ return a.date.localeCompare(b.date); });
-    var first = list[0], last = list[list.length-1];
+    var list = jobs[k];
+    var first = list.reduce(function(a,b){ return a.date<=b.date ? a : b; });
     result.push({
       key: k,
       startMonth: first.date.slice(0,7),
-      currentStatus: last.addressStatus || null,
       everProblem: list.some(function(e){ return e.addressStatus==="problem"; })
     });
   });
@@ -1747,14 +1746,14 @@ function computeKeritesJobLifecycles(){
 function buildProblemTrendChart(months){
   var jobs = computeKeritesJobLifecycles();
   var totals = months.map(function(m){
-    return jobs.filter(function(j){ return j.startMonth===m && j.currentStatus==="done"; }).length;
+    return jobs.filter(function(j){ return j.startMonth===m; }).length;
   });
   var problems = months.map(function(m){
-    return jobs.filter(function(j){ return j.startMonth===m && j.currentStatus==="done" && j.everProblem; }).length;
+    return jobs.filter(function(j){ return j.startMonth===m && j.everProblem; }).length;
   });
-  return '<p class="muted" style="font-size:.8rem;margin-bottom:.8rem;max-width:62ch">Az a hónap számít, amikor a munka elindult (az első bejegyzés dátuma). Csak a már lezárt (befejezett) címek kerülnek bele — egy régebbi hónap száma utólag még nőhet, ahogy a még nyitott munkák lezárulnak.</p>' +
+  return '<p class="muted" style="font-size:.8rem;margin-bottom:.8rem;max-width:62ch">Az a hónap számít, amikor a munka elindult (az első bejegyzés dátuma) — a még nyitott (be nem fejezett) címek is beleszámítanak.</p>' +
     buildBarChart(months, [
-      { label:"Összes lezárt cím", values:totals, colorVar:"--ok" },
+      { label:"Összes cím", values:totals, colorVar:"--ok" },
       { label:"Ebből valaha problémás volt", values:problems, colorVar:"--flag" }
     ]);
 }
