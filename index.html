@@ -252,6 +252,7 @@ var APP_CSS = [
 ".bar-chart-bar{flex:1;max-width:2.6rem;border-radius:3px 3px 0 0;position:relative;min-height:2px;}",
 ".bar-chart-value{position:absolute;left:50%;bottom:100%;transform:translateX(-50%);margin-bottom:.25rem;font-size:.7rem;font-weight:600;white-space:nowrap;color:var(--ink);}",
 ".bar-chart-label{margin-top:.5rem;font-size:.72rem;color:var(--ink-muted);text-align:center;white-space:nowrap;}",
+".assign-ptype-select{width:auto;display:inline-block;font-size:.76rem;padding:.25rem .4rem;border-radius:6px;}",
 ".two-col{display:grid;grid-template-columns:1.3fr 1fr;gap:1.6rem;align-items:start;}",
 "@media (max-width:1000px){.admin-body{flex-direction:column;}.admin-sidebar{position:static;width:100%;display:flex;flex-wrap:wrap;padding:.9rem 1.4rem;border-bottom:1px solid var(--line);}.admin-nav-btn{width:auto;}.admin-content{border-left:none;padding:1.4rem;}.two-col{grid-template-columns:1fr;}}"
 ].join("\n");
@@ -399,6 +400,7 @@ function keritesOverrideItem(entry){
   return null;
 }
 var KERITES_CREW_ADJUST_CUTOFF = "2026-10-01";
+var KERITES_PROBLEM_TYPES = ["Felmérési hiba", "Gyártási hiba", "Hiányzó alkatrész", "Szerelői hiba", "Ügyfél hibás előkészület", "Egyéb"];
 function keritesHourBreakdown(entry){
   var perf, overrideItem = keritesOverrideItem(entry);
   if (overrideItem){
@@ -641,7 +643,7 @@ function loadState(afterOk){
         bontasFestesOra: row.bontas_festes_ora||0, garanciaEgyebOra: row.garancia_egyeb_ora||0,
         workStart: row.work_start ? row.work_start.slice(0,5) : "", workEnd: row.work_end ? row.work_end.slice(0,5) : "",
         comment: row.comment||"", submittedAt: row.submitted_at, reviewedOk: row.reviewed_ok||false,
-        addressStatus: row.address_status||null, crewSize: row.crew_size||null
+        addressStatus: row.address_status||null, crewSize: row.crew_size||null, problemType: row.problem_type||null
       };
     });
     var extras = (r[6]||[]).map(function(row){ return { id:row.id, personId:row.person_id, month:row.month, label:row.label||"", amount:row.amount||0 }; });
@@ -665,6 +667,7 @@ function dbEntryRow(e){
     submitted_at: e.submittedAt || new Date().toISOString(),
     address_status: e.addressStatus || null,
     crew_size: e.crewSize || null,
+    problem_type: e.problemType || null,
     deleted_at: null
   };
 }
@@ -832,7 +835,7 @@ function renderEntry(){
   var person = getPerson(nav.personId);
   if (!person){ nav.view="landing"; return render(); }
   var date = nav.editDate || todayStr();
-  var existing = entryFor(person.id, date) || { items:{}, comment:"", dayType:"work", orderRef:"", assemblyHours:0, bontasFestesOra:0, garanciaEgyebOra:0, workStart:"", workEnd:"", crewSize:null };
+  var existing = entryFor(person.id, date) || { items:{}, comment:"", dayType:"work", orderRef:"", assemblyHours:0, bontasFestesOra:0, garanciaEgyebOra:0, workStart:"", workEnd:"", crewSize:null, problemType:null };
   var minDateStr = minEditableDateStr(person.trade);
   var locked = isLocked(person.trade, date.slice(0,7));
 
@@ -912,7 +915,11 @@ function renderEntry(){
       '<button type="button" class="addr-status-btn" data-addrstatus="done">Cím befejezve</button>' +
       '<button type="button" class="addr-status-btn" data-addrstatus="continue">Folytatni kell a címet</button>' +
       '<button type="button" class="addr-status-btn" data-addrstatus="problem">Probléma merült fel, megakadt a szerelés</button>' +
-      '</div></div>';
+      '</div></div>' +
+      '<div class="field" id="problem-type-field" style="margin-top:.9rem;display:none"><label>Hiba típusa <span style="color:var(--flag)">*</span></label>' +
+      '<select id="f-problem-type"><option value=""'+(!existing.problemType?" selected":"")+'>— válassz —</option>' +
+      KERITES_PROBLEM_TYPES.map(function(t){ return '<option value="'+escapeHtml(t)+'"'+(existing.problemType===t?" selected":"")+'>'+escapeHtml(t)+'</option>'; }).join("") +
+      '</select></div>';
   }
 
   var recent = STATE.entries.filter(function(e){ return e.personId===person.id; })
@@ -963,6 +970,8 @@ function renderEntry(){
     document.querySelectorAll(".addr-status-btn").forEach(function(b){
       b.classList.toggle("active", b.getAttribute("data-addrstatus")===addressStatus);
     });
+    var ptf = document.getElementById("problem-type-field");
+    if (ptf) ptf.style.display = addressStatus==="problem" ? "" : "none";
   }
   syncDayTypeUi();
   syncAddrStatusUi();
@@ -1023,6 +1032,7 @@ function renderEntry(){
       if (!crewSizeVal){ toast("Add meg, hányan dolgoztak ezen a címen ma."); return; }
       if (!addressStatus){ toast("Válaszd ki, hogy készen van-e a címmel, folytatni kell, vagy probléma merült fel."); return; }
       if (addressStatus === "problem" && !document.getElementById("f-comment").value.trim()){ toast("Írd le a Megjegyzésben, hogy milyen probléma merült fel."); return; }
+      if (addressStatus === "problem" && !(document.getElementById("f-problem-type")||{}).value){ toast("Válaszd ki a hiba típusát."); return; }
     }
     var items = {};
     document.querySelectorAll(".counter").forEach(function(row){
@@ -1043,6 +1053,7 @@ function renderEntry(){
       comment: document.getElementById("f-comment").value,
       addressStatus: (person.trade==="kerites" && dayType==="work") ? addressStatus : null,
       crewSize: (person.trade==="kerites" && dayType==="work") ? (parseInt((document.getElementById("f-crew-size")||{}).value,10)||null) : null,
+      problemType: (person.trade==="kerites" && dayType==="work" && addressStatus==="problem") ? (document.getElementById("f-problem-type")||{}).value : null,
       submittedAt: new Date().toISOString()
     };
     function doSave(){
@@ -1464,6 +1475,7 @@ function wirePersonMonthTab(person, month, locked){
         comment: fields.comment || "",
         addressStatus: existing ? (existing.addressStatus||null) : null,
         crewSize: existing ? (existing.crewSize||null) : null,
+        problemType: existing ? (existing.problemType||null) : null,
         submittedAt: new Date().toISOString()
       };
       toSave.push(entry);
@@ -1694,7 +1706,7 @@ function computeKeritesEverProblemJobs(year){
       currentStatus: last.addressStatus || null,
       lastDate: last.date,
       installerNames: installerIds.map(function(id){ var p=getPerson(id); return p?p.name:id; }),
-      problems: problemEntries.map(function(e){ return { date:e.date, comment:e.comment||"", personName:(getPerson(e.personId)||{}).name||e.personId }; })
+      problems: problemEntries.map(function(e){ return { personId:e.personId, date:e.date, comment:e.comment||"", problemType:e.problemType||null, personName:(getPerson(e.personId)||{}).name||e.personId }; })
     });
   });
   result.sort(function(a,b){ return b.lastDate.localeCompare(a.lastDate); });
@@ -1710,7 +1722,15 @@ function problemJobRowHtml(j){
     '</div>' +
     '<div class="muted" style="font-size:.8rem;margin-top:.2rem">'+j.installerNames.map(escapeHtml).join(", ")+'</div>' +
     '<div style="font-size:.8rem;margin-top:.3rem">' +
-      j.problems.map(function(p){ return '<div style="color:var(--flag)">✕ '+escapeHtml(fmtDate(p.date))+' · '+escapeHtml(p.personName)+(p.comment?': "'+escapeHtml(p.comment)+'"':'')+'</div>'; }).join("") +
+      j.problems.map(function(p){
+        var typeHtml = p.problemType
+          ? ' <span class="pill" style="background:var(--flag-bg);color:var(--flag)">'+escapeHtml(p.problemType)+'</span>'
+          : ' <select class="assign-ptype-select" data-person="'+escapeHtml(p.personId)+'" data-date="'+p.date+'">' +
+            '<option value="">— hibatípus megadása —</option>' +
+            KERITES_PROBLEM_TYPES.map(function(t){ return '<option value="'+escapeHtml(t)+'">'+escapeHtml(t)+'</option>'; }).join("") +
+            '</select>';
+        return '<div style="color:var(--flag);margin-bottom:.25rem">✕ '+escapeHtml(fmtDate(p.date))+' · '+escapeHtml(p.personName)+(p.comment?': "'+escapeHtml(p.comment)+'"':'')+typeHtml+'</div>';
+      }).join("") +
     '</div>' +
     '</div>';
 }
@@ -1719,6 +1739,34 @@ function buildProblemJobsSection(year){
   var listHtml = jobs.length ? jobs.map(problemJobRowHtml).join("") : '<p class="muted">Nincs ilyen cím ebben az évben.</p>';
   return '<div class="stat-row" style="margin-bottom:.8rem"><div class="stat-tile"><span class="n mono" style="color:var(--flag)">'+jobs.length+'</span><span class="l">Valaha problémás cím ('+year+')</span></div></div>' +
     '<div class="card">'+listHtml+'</div>';
+}
+function wireProblemJobsSection(){
+  document.querySelectorAll(".assign-ptype-select").forEach(function(sel){
+    sel.onchange = function(){
+      if (!sel.value) return;
+      var entry = entryFor(sel.getAttribute("data-person"), sel.getAttribute("data-date"));
+      if (!entry) return;
+      entry.problemType = sel.value;
+      saveEntries([entry], function(){ toast("Hibatípus hozzárendelve."); render(); });
+    };
+  });
+}
+function buildProblemTypeChart(months){
+  var monthSet = {};
+  months.forEach(function(m){ monthSet[m] = true; });
+  var counts = {};
+  KERITES_PROBLEM_TYPES.forEach(function(t){ counts[t] = 0; });
+  var unspecified = 0;
+  STATE.entries.forEach(function(e){
+    if (e.trade!=="kerites" || e.dayType!=="work" || e.addressStatus!=="problem") return;
+    if (!monthSet[e.date.slice(0,7)]) return;
+    if (e.problemType && counts.hasOwnProperty(e.problemType)) counts[e.problemType]++;
+    else unspecified++;
+  });
+  var labels = KERITES_PROBLEM_TYPES.slice();
+  var values = labels.map(function(t){ return counts[t]; });
+  if (unspecified > 0){ labels.push("Nincs megadva"); values.push(unspecified); }
+  return buildBarChart(labels, [{ label:"Esetek száma", values:values, colorVar:"--flag" }]);
 }
 
 function computeKeritesJobLifecycles(){
@@ -1787,6 +1835,9 @@ function buildReportsTab(people, trade){
     html += '<div class="section-title"><h2>Valaha problémás címek havi alakulása</h2></div>';
     html += buildProblemTrendChart(months);
 
+    html += '<div class="section-title"><h2>Hibatípusok szerinti megoszlás</h2></div>';
+    html += buildProblemTypeChart(months);
+
     var year = nav.adminYear;
     html += '<div class="section-title"><h2>Valaha problémás címek (részletes lista)</h2></div>';
     html += '<div class="card" style="max-width:160px;margin-bottom:1rem"><div class="field"><label>Év</label>' +
@@ -1805,6 +1856,7 @@ function wireReportsTab(){
   if (personSel) personSel.onchange = function(){ nav.reportsSelectedPerson = this.value; render(); };
   var yearSel = document.getElementById("rp-year");
   if (yearSel) yearSel.onchange = function(){ nav.adminYear = parseInt(this.value,10); render(); };
+  wireProblemJobsSection();
   wireNav();
 }
 
@@ -2048,7 +2100,7 @@ function openEntryModal(personId, date){
     if (person.trade==="kerites" && e.addressStatus){
       if (e.addressStatus==="done") addrStatusPill = '<p class="pill ok" style="margin-bottom:.6rem">✓ Cím befejezve</p>';
       else if (e.addressStatus==="continue") addrStatusPill = '<p class="pill warn" style="margin-bottom:.6rem">↻ Folytatni kell a címet</p>';
-      else if (e.addressStatus==="problem") addrStatusPill = '<p class="pill flag" style="margin-bottom:.6rem">✕ Probléma merült fel, megakadt a szerelés</p>';
+      else if (e.addressStatus==="problem") addrStatusPill = '<p class="pill flag" style="margin-bottom:.6rem">✕ Probléma merült fel, megakadt a szerelés'+(e.problemType?' — '+escapeHtml(e.problemType):'')+'</p>';
     }
     body = addrStatusPill +
       (anomaly && !e.reviewedOk ? '<p class="pill flag" style="margin-bottom:.6rem">⚠ Magas teljesítmény — ellenőrizd, mielőtt kifizeted!</p>' : '') +
