@@ -252,6 +252,8 @@ var APP_CSS = [
 ".bar-chart-bar{flex:1;max-width:2.6rem;border-radius:3px 3px 0 0;position:relative;min-height:2px;}",
 ".bar-chart-value{position:absolute;left:50%;bottom:100%;transform:translateX(-50%);margin-bottom:.25rem;font-size:.7rem;font-weight:600;white-space:nowrap;color:var(--ink);}",
 ".bar-chart-label{margin-top:.5rem;font-size:.72rem;color:var(--ink-muted);text-align:center;white-space:nowrap;}",
+".month-sep{border-left:3px solid var(--ink-muted);}",
+".bar-chart-group.month-sep{padding-left:.6rem;}",
 ".assign-ptype-select{width:auto;display:inline-block;font-size:.76rem;padding:.25rem .4rem;border-radius:6px;}",
 ".two-col{display:grid;grid-template-columns:1.3fr 1fr;gap:1.6rem;align-items:start;}",
 "@media (max-width:1000px){.admin-body{flex-direction:column;}.admin-sidebar{position:static;width:100%;display:flex;flex-wrap:wrap;padding:.9rem 1.4rem;border-bottom:1px solid var(--line);}.admin-nav-btn{width:auto;}.admin-content{border-left:none;padding:1.4rem;}.two-col{grid-template-columns:1fr;}}"
@@ -1606,6 +1608,7 @@ function personMonthTotal(person, trade, m){
 }
 function buildBarChart(labels, series, opts){
   var fmt = (opts && opts.valueFormatter) || function(v){ return String(v); };
+  var monthDividers = opts && opts.monthDividers;
   var maxVal = 0;
   series.forEach(function(s){ s.values.forEach(function(v){ if (v>maxVal) maxVal=v; }); });
   maxVal = maxVal || 1;
@@ -1615,7 +1618,8 @@ function buildBarChart(labels, series, opts){
       var h = Math.max(Math.round((v/maxVal)*100), v>0 ? 2 : 0);
       return '<div class="bar-chart-bar" style="height:'+h+'%;background:var('+s.colorVar+')" title="'+escapeHtml(s.label)+' ('+escapeHtml(lbl)+'): '+escapeHtml(fmt(v))+'"><span class="bar-chart-value">'+escapeHtml(fmt(v))+'</span></div>';
     }).join("");
-    return '<div class="bar-chart-group"><div class="bar-chart-bars">'+bars+'</div><div class="bar-chart-label">'+escapeHtml(lbl)+'</div></div>';
+    var groupCls = "bar-chart-group"+(monthDividers && i>0 ? " month-sep" : "");
+    return '<div class="'+groupCls+'"><div class="bar-chart-bars">'+bars+'</div><div class="bar-chart-label">'+escapeHtml(lbl)+'</div></div>';
   }).join("");
   var legend = series.length>1 ? '<div class="bar-chart-legend">'+series.map(function(s){
     return '<span class="bar-chart-legend-item"><span class="bar-chart-swatch" style="background:var('+s.colorVar+')"></span>'+escapeHtml(s.label)+'</span>';
@@ -1626,12 +1630,12 @@ function buildBerTrendChart(people, trade, months, selectedPersonId){
   var totals = months.map(function(m){
     return people.reduce(function(s,p){ return s + personMonthTotal(p, trade, m); }, 0);
   });
-  var html = buildBarChart(months, [{ label:"Összesen", values:totals, colorVar:"--accent" }], { valueFormatter: fmtFt });
+  var html = buildBarChart(months, [{ label:"Összesen", values:totals, colorVar:"--accent" }], { valueFormatter: fmtFt, monthDividers: true });
   var selected = selectedPersonId ? people.find(function(p){ return p.id===selectedPersonId; }) : null;
   if (selected){
     var personVals = months.map(function(m){ return personMonthTotal(selected, trade, m); });
     html += '<p class="muted" style="margin:-.6rem 0 .6rem;font-size:.8rem">'+escapeHtml(selected.name)+' saját trendje:</p>' +
-      buildBarChart(months, [{ label:selected.name, values:personVals, colorVar:"--info" }], { valueFormatter: fmtFt });
+      buildBarChart(months, [{ label:selected.name, values:personVals, colorVar:"--info" }], { valueFormatter: fmtFt, monthDividers: true });
   }
   return html;
 }
@@ -1645,21 +1649,21 @@ function buildAttendanceChart(people, months){
   return buildBarChart(months, [
     { label:"Szabadság", values:vacTotals, colorVar:"--info" },
     { label:"Betegállomány", values:sickTotals, colorVar:"--sick" }
-  ], { valueFormatter: function(v){ return v+" nap"; } });
+  ], { valueFormatter: function(v){ return v+" nap"; }, monthDividers: true });
 }
 function buildBerTrendSection(people, trade, months){
   var totals = {};
   months.forEach(function(m){ totals[m] = 0; });
   var rows = people.map(function(p){
-    var cells = months.map(function(m){
+    var cells = months.map(function(m, i){
       var v = personMonthTotal(p, trade, m);
       totals[m] += v;
-      return '<td class="mono">'+fmtFt(v)+'</td>';
+      return '<td class="mono'+(i>0?" month-sep":"")+'">'+fmtFt(v)+'</td>';
     }).join("");
     return '<tr><td><strong>'+escapeHtml(p.name)+'</strong></td>'+cells+'</tr>';
   }).join("");
-  var footer = '<tr><td>Összesen</td>'+months.map(function(m){ return '<td class="mono"><strong>'+fmtFt(totals[m])+'</strong></td>'; }).join("")+'</tr>';
-  var head = '<th>Szerelő</th>'+months.map(function(m){ return '<th>'+m+'</th>'; }).join("");
+  var footer = '<tr><td>Összesen</td>'+months.map(function(m, i){ return '<td class="mono'+(i>0?" month-sep":"")+'"><strong>'+fmtFt(totals[m])+'</strong></td>'; }).join("")+'</tr>';
+  var head = '<th>Szerelő</th>'+months.map(function(m, i){ return '<th'+(i>0?' class="month-sep"':'')+'>'+m+'</th>'; }).join("");
   return '<div class="matrix-scroll"><table class="summary-table"><thead><tr>'+head+'</tr></thead><tbody>'+rows+'</tbody><tfoot>'+footer+'</tfoot></table></div>';
 }
 
@@ -1667,18 +1671,18 @@ function buildAttendanceSection(people, months){
   var totals = {};
   months.forEach(function(m){ totals[m] = { vac:0, sick:0 }; });
   var rows = people.map(function(p){
-    var cells = months.map(function(m){
+    var cells = months.map(function(m, i){
       var entries = monthEntries(p.id, m);
       var vac = entries.filter(function(e){ return e.dayType==="vacation"; }).length;
       var sick = entries.filter(function(e){ return e.dayType==="sick"; }).length;
       totals[m].vac += vac; totals[m].sick += sick;
-      return '<td class="mono">'+vac+'</td><td class="mono">'+sick+'</td>';
+      return '<td class="mono'+(i>0?" month-sep":"")+'">'+vac+'</td><td class="mono">'+sick+'</td>';
     }).join("");
     return '<tr><td><strong>'+escapeHtml(p.name)+'</strong></td>'+cells+'</tr>';
   }).join("");
-  var footer = '<tr><td>Összesen</td>'+months.map(function(m){ return '<td class="mono"><strong>'+totals[m].vac+'</strong></td><td class="mono"><strong>'+totals[m].sick+'</strong></td>'; }).join("")+'</tr>';
-  var headTop = '<th rowspan="2">Szerelő</th>'+months.map(function(m){ return '<th colspan="2">'+m+'</th>'; }).join("");
-  var headBottom = months.map(function(){ return '<th>Szab.</th><th>Beteg</th>'; }).join("");
+  var footer = '<tr><td>Összesen</td>'+months.map(function(m, i){ return '<td class="mono'+(i>0?" month-sep":"")+'"><strong>'+totals[m].vac+'</strong></td><td class="mono"><strong>'+totals[m].sick+'</strong></td>'; }).join("")+'</tr>';
+  var headTop = '<th rowspan="2">Szerelő</th>'+months.map(function(m, i){ return '<th colspan="2"'+(i>0?' class="month-sep"':'')+'>'+m+'</th>'; }).join("");
+  var headBottom = months.map(function(m, i){ return '<th'+(i>0?' class="month-sep"':'')+'>Szab.</th><th>Beteg</th>'; }).join("");
   return '<div class="matrix-scroll"><table class="summary-table"><thead><tr>'+headTop+'</tr><tr>'+headBottom+'</tr></thead><tbody>'+rows+'</tbody><tfoot>'+footer+'</tfoot></table></div>';
 }
 
@@ -1813,7 +1817,7 @@ function buildProblemTrendChart(months){
     buildBarChart(months, [
       { label:"Összes cím", values:totals, colorVar:"--ok" },
       { label:"Ebből valaha problémás volt", values:problems, colorVar:"--flag" }
-    ]);
+    ], { monthDividers: true });
 }
 
 function buildReportsTab(people, trade){
