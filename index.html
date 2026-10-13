@@ -143,6 +143,8 @@ var APP_CSS = [
 "input[type=text],input[type=date],input[type=number],textarea,select{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:.6rem .7rem;font-size:1rem;color:var(--ink);font-family:inherit;}",
 "textarea{min-height:4.5rem;resize:vertical;}",
 ".field{margin-bottom:.9rem;}",
+".field.field-invalid>input,.field.field-invalid>select,.field.field-invalid>textarea{border-color:var(--flag);box-shadow:0 0 0 1px var(--flag);}",
+".field-error-msg{color:var(--flag);font-size:.78rem;margin:.35rem 0 0;}",
 ".row{display:flex;gap:.7rem;}",
 ".row>.field{flex:1;}",
 ".switch-row{display:flex;align-items:center;justify-content:space-between;background:var(--surface-2);border-radius:10px;padding:.7rem .9rem;margin-bottom:1rem;}",
@@ -711,6 +713,25 @@ function toast(msg){
   document.body.appendChild(el);
   setTimeout(function(){ el.remove(); }, 3200);
 }
+function setFieldError(fieldId, message){
+  var field = document.getElementById(fieldId);
+  if (!field) return;
+  field.classList.add("field-invalid");
+  var msgEl = field.querySelector(".field-error-msg");
+  if (!msgEl){
+    msgEl = document.createElement("p");
+    msgEl.className = "field-error-msg";
+    field.appendChild(msgEl);
+  }
+  msgEl.textContent = message;
+}
+function clearFieldError(fieldId){
+  var field = document.getElementById(fieldId);
+  if (!field) return;
+  field.classList.remove("field-invalid");
+  var msgEl = field.querySelector(".field-error-msg");
+  if (msgEl) msgEl.remove();
+}
 
 /* ---------- RENDER ---------- */
 function h(html){ var t=document.createElement("template"); t.innerHTML=html.trim(); return t.content.firstChild; }
@@ -903,17 +924,17 @@ function renderEntry(){
   var addrStatusFieldHtml = "";
   if (person.trade === "kerites"){
     timeFields = '<div class="row">' +
-      '<div class="field"><label>Munkakezdés</label><input type="time" id="f-work-start" value="'+escapeHtml(existing.workStart||"")+'"></div>' +
-      '<div class="field"><label>Munkavég</label><input type="time" id="f-work-end" value="'+escapeHtml(existing.workEnd||"")+'"></div>' +
+      '<div class="field" id="f-work-start-field"><label>Munkakezdés</label><input type="time" id="f-work-start" value="'+escapeHtml(existing.workStart||"")+'"></div>' +
+      '<div class="field" id="f-work-end-field"><label>Munkavég</label><input type="time" id="f-work-end" value="'+escapeHtml(existing.workEnd||"")+'"></div>' +
       '</div>' +
-      '<div class="field"><label>Hányan dolgoztak ezen a címen ma? <span style="color:var(--flag)">*</span></label>' +
+      '<div class="field" id="f-crew-size-field"><label>Hányan dolgoztak ezen a címen ma? <span style="color:var(--flag)">*</span></label>' +
       '<select id="f-crew-size">' +
       '<option value=""'+(!existing.crewSize?" selected":"")+'>— válassz —</option>' +
       '<option value="2"'+(existing.crewSize===2?" selected":"")+'>2 fő</option>' +
       '<option value="3"'+(existing.crewSize===3?" selected":"")+'>3 fő</option>' +
       '<option value="4"'+(existing.crewSize===4?" selected":"")+'>4 fő</option>' +
       '</select></div>';
-    addrStatusFieldHtml = '<div class="field" style="margin-top:.9rem"><label>Cím állapota <span style="color:var(--flag)">*</span></label><div class="addr-status-group">' +
+    addrStatusFieldHtml = '<div class="field" id="f-addrstatus-field" style="margin-top:.9rem"><label>Cím állapota <span style="color:var(--flag)">*</span></label><div class="addr-status-group">' +
       '<button type="button" class="addr-status-btn" data-addrstatus="done">Cím befejezve</button>' +
       '<button type="button" class="addr-status-btn" data-addrstatus="continue">Folytatni kell a címet</button>' +
       '<button type="button" class="addr-status-btn" data-addrstatus="problem">Probléma merült fel, megakadt a szerelés</button>' +
@@ -938,13 +959,13 @@ function renderEntry(){
     '<button type="button" class="day-type-btn" data-daytype="sick">Betegállomány</button>' +
     '</div></div>' +
     '<div id="work-fields">' +
-    '<div class="field"><label>Munka / rendelés azonosító '+(person.trade==="kerites" ? '(kötelezően kitöltendő) <span style="color:var(--flag)">*</span>' : '(opcionális)')+'</label><input type="text" id="f-order" placeholder="pl. 1060/26" value="'+escapeHtml(existing.orderRef||"")+'"></div>' +
+    '<div class="field" id="f-order-field"><label>Munka / rendelés azonosító '+(person.trade==="kerites" ? '(kötelezően kitöltendő) <span style="color:var(--flag)">*</span>' : '(opcionális)')+'</label><input type="text" id="f-order" placeholder="pl. 1060/26" value="'+escapeHtml(existing.orderRef||"")+'"></div>' +
     timeFields +
     (itemsLabel ? '<label>'+itemsLabel+'</label>' : '') + counters +
     extraFields +
     addrStatusFieldHtml +
     '</div>' +
-    '<div class="field" style="margin-top:.9rem"><label>Megjegyzés</label><textarea id="f-comment" placeholder="Bármi, amit jelezni szeretnél...">'+escapeHtml(existing.comment||"")+'</textarea></div>' +
+    '<div class="field" id="f-comment-field" style="margin-top:.9rem"><label>Megjegyzés</label><textarea id="f-comment" placeholder="Bármi, amit jelezni szeretnél...">'+escapeHtml(existing.comment||"")+'</textarea></div>' +
     '<button class="primary" id="f-save"'+(locked?" disabled":"")+'>Mentés</button>' +
     '</div>' +
     (recent.length ? '<div class="section-title"><h2>Korábbi napjaid</h2></div><div class="card">' +
@@ -981,8 +1002,26 @@ function renderEntry(){
     b.onclick = function(){ dayType = b.getAttribute("data-daytype"); syncDayTypeUi(); };
   });
   document.querySelectorAll(".addr-status-btn").forEach(function(b){
-    b.onclick = function(){ addressStatus = b.getAttribute("data-addrstatus"); syncAddrStatusUi(); };
+    b.onclick = function(){
+      addressStatus = b.getAttribute("data-addrstatus"); syncAddrStatusUi();
+      clearFieldError("f-addrstatus-field");
+      if (addressStatus !== "problem"){ clearFieldError("f-comment-field"); clearFieldError("problem-type-field"); }
+    };
   });
+  if (person.trade === "kerites"){
+    var fOrder = document.getElementById("f-order");
+    if (fOrder) fOrder.oninput = function(){ clearFieldError("f-order-field"); };
+    var fWs = document.getElementById("f-work-start");
+    if (fWs) fWs.onchange = function(){ clearFieldError("f-work-start-field"); clearFieldError("f-work-end-field"); };
+    var fWe = document.getElementById("f-work-end");
+    if (fWe) fWe.onchange = function(){ clearFieldError("f-work-end-field"); };
+    var fCrew = document.getElementById("f-crew-size");
+    if (fCrew) fCrew.onchange = function(){ clearFieldError("f-crew-size-field"); };
+    var fPType = document.getElementById("f-problem-type");
+    if (fPType) fPType.onchange = function(){ clearFieldError("problem-type-field"); };
+    var fComment = document.getElementById("f-comment");
+    if (fComment) fComment.oninput = function(){ clearFieldError("f-comment-field"); };
+  }
 
   document.querySelectorAll(".counter").forEach(function(row){
     var qtyEl = row.querySelector("[data-qty]");
@@ -1022,19 +1061,29 @@ function renderEntry(){
     var entryLocked = isLocked(person.trade, d.slice(0,7));
     if (entryLocked){ toast("Ez a hónap le van zárva."); return; }
     if (!nav.adminAuthed && d < minDateStr){ toast("Ez a nap már egy korábbi hónapban van — szólj az adminnak, ha módosítani szeretnél rajta."); return; }
+    var kVALIDATE_FIELDS = ["f-order-field","f-work-start-field","f-work-end-field","f-crew-size-field","f-addrstatus-field","f-comment-field","problem-type-field"];
+    kVALIDATE_FIELDS.forEach(clearFieldError);
     if (person.trade==="kerites" && dayType==="work"){
+      var errorFields = [];
       var orderRefVal = (document.getElementById("f-order")||{}).value || "";
-      if (!orderRefVal.trim()){ toast("Add meg a munka/rendelés azonosítót."); return; }
-      if (!/\d/.test(orderRefVal)){ toast("A munka/rendelés azonosítónak tartalmaznia kell egy számot (pl. 1889/26)."); return; }
+      if (!orderRefVal.trim()){ setFieldError("f-order-field","Add meg a munka/rendelés azonosítót."); errorFields.push("f-order-field"); }
+      else if (!/\d/.test(orderRefVal)){ setFieldError("f-order-field","Tartalmaznia kell egy számot (pl. 1889/26)."); errorFields.push("f-order-field"); }
       var ws = (document.getElementById("f-work-start")||{}).value;
       var we = (document.getElementById("f-work-end")||{}).value;
-      if (!ws || !we){ toast("Add meg a munkakezdés és munkavég időpontját."); return; }
-      if (timeToDecimal(we) <= timeToDecimal(ws)){ toast("A munkavégnek később kell lennie, mint a munkakezdésnek."); return; }
+      if (!ws){ setFieldError("f-work-start-field","Add meg a munkakezdést."); errorFields.push("f-work-start-field"); }
+      if (!we){ setFieldError("f-work-end-field","Add meg a munkavéget."); errorFields.push("f-work-end-field"); }
+      if (ws && we && timeToDecimal(we) <= timeToDecimal(ws)){ setFieldError("f-work-end-field","Később kell lennie, mint a munkakezdésnek."); errorFields.push("f-work-end-field"); }
       var crewSizeVal = (document.getElementById("f-crew-size")||{}).value || "";
-      if (!crewSizeVal){ toast("Add meg, hányan dolgoztak ezen a címen ma."); return; }
-      if (!addressStatus){ toast("Válaszd ki, hogy készen van-e a címmel, folytatni kell, vagy probléma merült fel."); return; }
-      if (addressStatus === "problem" && !document.getElementById("f-comment").value.trim()){ toast("Írd le a Megjegyzésben, hogy milyen probléma merült fel."); return; }
-      if (addressStatus === "problem" && !(document.getElementById("f-problem-type")||{}).value){ toast("Válaszd ki a hiba típusát."); return; }
+      if (!crewSizeVal){ setFieldError("f-crew-size-field","Add meg, hányan dolgoztak ezen a címen ma."); errorFields.push("f-crew-size-field"); }
+      if (!addressStatus){ setFieldError("f-addrstatus-field","Válaszd ki, hogy készen van-e, folytatni kell, vagy probléma merült fel."); errorFields.push("f-addrstatus-field"); }
+      if (addressStatus === "problem" && !document.getElementById("f-comment").value.trim()){ setFieldError("f-comment-field","Írd le, milyen probléma merült fel."); errorFields.push("f-comment-field"); }
+      if (addressStatus === "problem" && !(document.getElementById("f-problem-type")||{}).value){ setFieldError("problem-type-field","Válaszd ki a hiba típusát."); errorFields.push("problem-type-field"); }
+      if (errorFields.length){
+        toast(errorFields.length===1 ? "1 kötelező mező hiányzik — nézd át pirossal jelölve." : errorFields.length+" kötelező mező hiányzik — nézd át pirossal jelölve.");
+        var firstField = document.getElementById(errorFields[0]);
+        if (firstField) firstField.scrollIntoView({ behavior:"smooth", block:"center" });
+        return;
+      }
     }
     var items = {};
     document.querySelectorAll(".counter").forEach(function(row){
