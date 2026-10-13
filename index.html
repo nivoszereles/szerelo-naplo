@@ -1270,6 +1270,16 @@ function monthTotalForTrade(trade, month){
   });
   return total;
 }
+function monthToDateSimpleTotal(trade, month, throughDay){
+  var people = STATE.people.filter(function(p){ return p.trade===trade && p.active!==false; });
+  var total = 0;
+  people.forEach(function(p){
+    monthEntries(p.id, month).forEach(function(e){
+      if (parseInt(e.date.slice(8,10),10) <= throughDay) total += calcEntryValue(e, p);
+    });
+  });
+  return total;
+}
 function computeDashboardStats(month){
   var today = todayStr();
   var dim = daysInMonth(month);
@@ -1299,15 +1309,24 @@ function dashboardTrendHtml(cur, prev){
   var pct = Math.round((diff/prev)*100);
   var arrow = diff>=0 ? "▲" : "▼";
   var sign = diff>=0 ? "+" : "";
-  return '<p class="muted" style="font-size:.74rem;margin:.3rem 0 0">'+arrow+' '+sign+fmtFt(diff)+' ('+sign+pct+'%) előző hónaphoz képest</p>';
+  return '<p class="muted" style="font-size:.74rem;margin:.3rem 0 0">'+arrow+' '+sign+fmtFt(diff)+' ('+sign+pct+'%) időarányosan az előző hónaphoz képest</p>';
 }
 function buildDashboardTab(){
   var month = todayStr().slice(0,7);
   var prevMonth = prevMonthStr(month);
   var stats = computeDashboardStats(month);
-  var ajtoTotal = monthTotalForTrade("ajto", month), ajtoPrev = monthTotalForTrade("ajto", prevMonth);
-  var keritesTotal = monthTotalForTrade("kerites", month), keritesPrev = monthTotalForTrade("kerites", prevMonth);
-  var togetherTotal = ajtoTotal + keritesTotal, togetherPrev = ajtoPrev + keritesPrev;
+  var ajtoTotal = monthTotalForTrade("ajto", month);
+  var keritesTotal = monthTotalForTrade("kerites", month);
+  var togetherTotal = ajtoTotal + keritesTotal;
+
+  var todayDay = parseInt(todayStr().slice(8,10),10);
+  var prevCutoffDay = Math.max(1, Math.round((todayDay / daysInMonth(month)) * daysInMonth(prevMonth)));
+  var ajtoCurSimple = monthToDateSimpleTotal("ajto", month, todayDay);
+  var ajtoPrevSimple = monthToDateSimpleTotal("ajto", prevMonth, prevCutoffDay);
+  var keritesCurSimple = monthToDateSimpleTotal("kerites", month, todayDay);
+  var keritesPrevSimple = monthToDateSimpleTotal("kerites", prevMonth, prevCutoffDay);
+  var togetherCurSimple = ajtoCurSimple + keritesCurSimple;
+  var togetherPrevSimple = ajtoPrevSimple + keritesPrevSimple;
 
   function tileBtn(linkKey, color, n, label, trendHtmlStr){
     return '<button type="button" class="stat-tile-btn" data-dash-link="'+linkKey+'"><div class="stat-tile">' +
@@ -1325,9 +1344,9 @@ function buildDashboardTab(){
     '</div>' +
     '<div class="section-title"><h2>Pénzügyi összkép — folyó hónap</h2></div>' +
     '<div class="stat-row">' +
-      tileBtn("payroll-ajto",null,fmtFt(ajtoTotal),"Ajtó összesen",dashboardTrendHtml(ajtoTotal,ajtoPrev)) +
-      tileBtn("payroll-kerites",null,fmtFt(keritesTotal),"Kerítés összesen",dashboardTrendHtml(keritesTotal,keritesPrev)) +
-      '<div class="stat-tile"><span class="n mono" style="font-weight:700">'+fmtFt(togetherTotal)+'</span><span class="l">Együtt</span>'+dashboardTrendHtml(togetherTotal,togetherPrev)+'</div>' +
+      tileBtn("payroll-ajto",null,fmtFt(ajtoTotal),"Ajtó összesen",dashboardTrendHtml(ajtoCurSimple,ajtoPrevSimple)) +
+      tileBtn("payroll-kerites",null,fmtFt(keritesTotal),"Kerítés összesen",dashboardTrendHtml(keritesCurSimple,keritesPrevSimple)) +
+      '<div class="stat-tile"><span class="n mono" style="font-weight:700">'+fmtFt(togetherTotal)+'</span><span class="l">Együtt</span>'+dashboardTrendHtml(togetherCurSimple,togetherPrevSimple)+'</div>' +
     '</div>';
 }
 function wireDashboardTab(){
