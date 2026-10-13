@@ -241,6 +241,8 @@ var APP_CSS = [
 ".admin-h1{font-size:1.3rem;margin-bottom:.2rem;}",
 ".stat-row{display:flex;gap:1rem;margin-bottom:1.3rem;flex-wrap:wrap;}",
 ".stat-tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:.9rem 1.2rem;min-width:150px;}",
+".stat-tile-btn{all:unset;cursor:pointer;display:block;}",
+".stat-tile-btn:hover .stat-tile{border-color:var(--ink-muted);}",
 ".stat-tile .n{font-family:'JetBrains Mono',monospace;font-size:1.4rem;font-weight:600;display:block;}",
 ".stat-tile .l{color:var(--ink-muted);font-size:.76rem;text-transform:uppercase;letter-spacing:.03em;}",
 ".summary-table tfoot td{border-top:2px solid var(--ink);border-bottom:none;font-weight:700;}",
@@ -266,7 +268,7 @@ document.getElementById("app-style").textContent = APP_CSS;
 var STATE = JSON.parse(document.getElementById("app-state").textContent);
 var nav = { view: "landing", trade: null, personId: null, editDate: null, justLoggedIn: false,
   adminAuthed: (sessionStorage.getItem("szn_admin") === "1"),
-  adminTrade: "ajto", adminMonth: monthStr(new Date()), adminTab: "overview", adminPersonId: null,
+  adminTrade: "ajto", adminMonth: monthStr(new Date()), adminTab: "dashboard", adminPersonId: null,
   adminYear: new Date().getFullYear(), reportsMonths: 3, reportsStartMonth: "2026-09", reportsSelectedPerson: "" };
 
 /* ---------- HELPERS ---------- */
@@ -1159,7 +1161,7 @@ function renderAdminPin(){
     if (document.getElementById("f-pin").value === STATE.adminPin){
       nav.adminAuthed = true;
       try { sessionStorage.setItem("szn_admin","1"); } catch(e){}
-      nav.view = "admin"; render();
+      nav.view = "admin"; nav.adminTab = "dashboard"; render();
     } else { toast("Helytelen PIN."); }
   };
   wireNav();
@@ -1175,6 +1177,7 @@ function renderAdmin(){
   var showYearFilter = (tab==="addresses");
 
   var navItems = [
+    { key:"dashboard", label:"🏠 Vezérlőpult" },
     { key:"overview", label:"📋 Napló mátrix" },
     { key:"payroll", label:"💰 Bérszámítás" },
     { key:"people", label:"👷 Szerelők" },
@@ -1203,7 +1206,8 @@ function renderAdmin(){
   if (tab==="personMonth" && !personMonthPerson) tab = "overview";
 
   var content;
-  if (tab==="overview") content = buildOverviewTab(people, trade, month);
+  if (tab==="dashboard") content = buildDashboardTab();
+  else if (tab==="overview") content = buildOverviewTab(people, trade, month);
   else if (tab==="payroll") content = buildPayrollTab(people, trade, month);
   else if (tab==="people") content = buildPeopleTab(people, trade);
   else if (tab==="pricing") content = buildPricingTab(people, trade);
@@ -1239,7 +1243,8 @@ function renderAdmin(){
     btn.onclick = function(){ nav.adminTab = btn.getAttribute("data-tab"); render(); };
   });
 
-  if (tab==="overview") wireOverviewTab(people, trade, month);
+  if (tab==="dashboard") wireDashboardTab();
+  else if (tab==="overview") wireOverviewTab(people, trade, month);
   else if (tab==="payroll") wirePayrollTab(people, trade, month);
   else if (tab==="people") wirePeopleTab(people, trade);
   else if (tab==="pricing") wirePricingTab(people, trade);
@@ -1249,6 +1254,98 @@ function renderAdmin(){
   else if (tab==="reports") wireReportsTab();
   else wireSettingsTab();
 
+  wireNav();
+}
+
+function prevMonthStr(ym){
+  var parts = ym.split("-");
+  var y = parseInt(parts[0],10), m = parseInt(parts[1],10)-1;
+  return monthStr(new Date(y, m-1, 1));
+}
+function monthTotalForTrade(trade, month){
+  var people = STATE.people.filter(function(p){ return p.trade===trade && p.active!==false; });
+  var total = 0;
+  people.forEach(function(p){
+    total += monthPieceTotalEffective(p.id, month, trade) + monthExtrasTotal(p.id, month) + monthAttendanceBonus(p.id, month);
+  });
+  return total;
+}
+function computeDashboardStats(month){
+  var today = todayStr();
+  var dim = daysInMonth(month);
+  var missing = 0, anomaly = 0;
+  STATE.people.filter(function(p){ return p.active!==false; }).forEach(function(p){
+    for (var d=1; d<=dim; d++){
+      var dateStr = month+"-"+pad(d);
+      if (dateStr > today) break;
+      if (weekday(month,d)===0 || weekday(month,d)===6) continue;
+      if (!entryFor(p.id, dateStr)) missing++;
+    }
+  });
+  STATE.entries.forEach(function(e){
+    if (e.trade!=="kerites" || e.dayType!=="work" || e.date.slice(0,7)!==month) return;
+    if (isHourAnomaly(e) && !e.reviewedOk) anomaly++;
+  });
+  var jobStatuses = computeKeritesJobStatuses();
+  var openProblemAddr = 0;
+  Object.keys(jobStatuses).forEach(function(k){
+    if (jobStatuses[k].status==="continue" || jobStatuses[k].status==="problem") openProblemAddr++;
+  });
+  return { missing: missing, anomaly: anomaly, openProblemAddr: openProblemAddr, crewMismatches: computeKeritesCrewMismatches(month).length };
+}
+function dashboardTrendHtml(cur, prev){
+  if (prev <= 0) return '<p class="muted" style="font-size:.74rem;margin:.3rem 0 0">Nincs előző havi adat</p>';
+  var diff = cur - prev;
+  var pct = Math.round((diff/prev)*100);
+  var arrow = diff>=0 ? "▲" : "▼";
+  var sign = diff>=0 ? "+" : "";
+  return '<p class="muted" style="font-size:.74rem;margin:.3rem 0 0">'+arrow+' '+sign+fmtFt(diff)+' ('+sign+pct+'%) előző hónaphoz képest</p>';
+}
+function buildDashboardTab(){
+  var month = todayStr().slice(0,7);
+  var prevMonth = prevMonthStr(month);
+  var stats = computeDashboardStats(month);
+  var ajtoTotal = monthTotalForTrade("ajto", month), ajtoPrev = monthTotalForTrade("ajto", prevMonth);
+  var keritesTotal = monthTotalForTrade("kerites", month), keritesPrev = monthTotalForTrade("kerites", prevMonth);
+  var togetherTotal = ajtoTotal + keritesTotal, togetherPrev = ajtoPrev + keritesPrev;
+
+  function tileBtn(linkKey, color, n, label, trendHtmlStr){
+    return '<button type="button" class="stat-tile-btn" data-dash-link="'+linkKey+'"><div class="stat-tile">' +
+      '<span class="n mono"'+(color?' style="color:'+color+'"':'')+'>'+n+'</span><span class="l">'+label+'</span>' +
+      (trendHtmlStr||'') + '</div></button>';
+  }
+
+  return '<h1 class="admin-h1">Vezérlőpult — '+month+'</h1>' +
+    '<div class="section-title"><h2>Figyelmet igényel</h2></div>' +
+    '<div class="stat-row">' +
+      tileBtn("overview-ajto","var(--warn)",stats.missing,"Hiányzó nap (összesen)") +
+      tileBtn("overview-kerites","var(--flag)",stats.anomaly,"Magas teljesítmény (kerítés)") +
+      tileBtn("addresses","var(--flag)",stats.openProblemAddr,"Nyitott / problémás cím (kerítés)") +
+      tileBtn("crewcheck","var(--warn)",stats.crewMismatches,"Létszám-eltérés (kerítés)") +
+    '</div>' +
+    '<div class="section-title"><h2>Pénzügyi összkép — folyó hónap</h2></div>' +
+    '<div class="stat-row">' +
+      tileBtn("payroll-ajto",null,fmtFt(ajtoTotal),"Ajtó összesen",dashboardTrendHtml(ajtoTotal,ajtoPrev)) +
+      tileBtn("payroll-kerites",null,fmtFt(keritesTotal),"Kerítés összesen",dashboardTrendHtml(keritesTotal,keritesPrev)) +
+      '<div class="stat-tile"><span class="n mono" style="font-weight:700">'+fmtFt(togetherTotal)+'</span><span class="l">Együtt</span>'+dashboardTrendHtml(togetherTotal,togetherPrev)+'</div>' +
+    '</div>';
+}
+function wireDashboardTab(){
+  var map = {
+    "overview-ajto": { trade:"ajto", tab:"overview" },
+    "overview-kerites": { trade:"kerites", tab:"overview" },
+    "addresses": { trade:"kerites", tab:"addresses" },
+    "crewcheck": { trade:"kerites", tab:"crewcheck" },
+    "payroll-ajto": { trade:"ajto", tab:"payroll" },
+    "payroll-kerites": { trade:"kerites", tab:"payroll" }
+  };
+  document.querySelectorAll("[data-dash-link]").forEach(function(btn){
+    btn.onclick = function(){
+      var target = map[btn.getAttribute("data-dash-link")];
+      if (!target) return;
+      nav.adminTrade = target.trade; nav.adminTab = target.tab; render();
+    };
+  });
   wireNav();
 }
 
