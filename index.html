@@ -445,6 +445,23 @@ function keritesHourBreakdown(entry){
   var topUp = (clocked!=null && clocked>perf) ? (clocked-perf) : 0;
   return { perf: perf, clocked: clocked, topUp: topUp, overrideItem: overrideItem };
 }
+function simulateKeritesPerf(items, crewSize, dateVal){
+  var kitems = STATE.catalog.kerites.items;
+  var overrideItem = null;
+  for (var i=0;i<kitems.length;i++){
+    if (kitems[i].override && items[kitems[i].key] > 0){ overrideItem = kitems[i]; break; }
+  }
+  if (overrideItem) return { perf: overrideItem.hoursPerUnit, overrideLabel: overrideItem.label, crewAdjustApplied:false };
+  var unitHours = 0;
+  kitems.forEach(function(it){ unitHours += (items[it.key]||0) * it.hoursPerUnit; });
+  var crewAdjustApplied = false;
+  if (STATE.keritesCrewAdjust && dateVal >= KERITES_CREW_ADJUST_CUTOFF && crewSize >= 3){
+    unitHours = unitHours * (2/crewSize);
+    crewAdjustApplied = true;
+  }
+  var fixed = unitHours>0 ? (STATE.catalog.kerites.fixedDailyHours.utazas + STATE.catalog.kerites.fixedDailyHours.jarulekos) : 0;
+  return { perf: unitHours + fixed, overrideLabel: null, crewAdjustApplied: crewAdjustApplied };
+}
 function isHourAnomaly(entry){
   if (!entry || entry.trade!=="kerites" || entry.dayType!=="work") return false;
   var b = keritesHourBreakdown(entry);
@@ -510,6 +527,22 @@ function keritesActualCrewSize(entry){
   });
   var n = Object.keys(ids).length;
   return n>0 ? n : (entry.crewSize || null);
+}
+function keritesCrewPreviewText(orderRefVal, dateVal, myPersonId){
+  if (!orderRefVal || !orderRefVal.trim() || !dateVal) return "";
+  var entryYear = parseInt(dateVal.slice(0,4),10);
+  var myJobs = parseAllJobIds(orderRefVal, entryYear);
+  if (!myJobs.length) return "";
+  var ids = {};
+  STATE.entries.forEach(function(e){
+    if (e.trade!=="kerites" || e.dayType!=="work" || e.date!==dateVal || e.personId===myPersonId) return;
+    var otherJobs = parseAllJobIds(e.orderRef, entryYear);
+    if (jobIdsShareKey(myJobs, otherJobs)) ids[e.personId]=true;
+  });
+  var otherNames = Object.keys(ids).map(function(id){ var p=getPerson(id); return p?p.name:id; });
+  if (!otherNames.length) return "Jelenleg te vagy az egyetlen rögzített szerelő erre a napra, erre a rendelésszámra.";
+  var total = otherNames.length + 1;
+  return "Jelenleg "+otherNames.length+" másik szerelő is rögzítve van erre a napra, erre a rendelésszámra ("+otherNames.join(", ")+") — a rendszer "+total+" fős csapatként veszi figyelembe.";
 }
 function monthPieceTotalKeritesNew(personId, month){
   var person = getPerson(personId);
@@ -981,7 +1014,7 @@ function renderEntry(){
     '<button type="button" class="day-type-btn" data-daytype="sick">Betegállomány</button>' +
     '</div></div>' +
     '<div id="work-fields">' +
-    '<div class="field" id="f-order-field"><label>Munka / rendelés azonosító '+(person.trade==="kerites" ? '(kötelezően kitöltendő) <span style="color:var(--flag)">*</span>' : '(opcionális)')+'</label><input type="text" id="f-order" placeholder="pl. 1060/26" value="'+escapeHtml(existing.orderRef||"")+'"></div>' +
+    '<div class="field" id="f-order-field"><label>Munka / rendelés azonosító '+(person.trade==="kerites" ? '(kötelezően kitöltendő) <span style="color:var(--flag)">*</span>' : '(opcionális)')+'</label><input type="text" id="f-order" placeholder="pl. 1060/26" value="'+escapeHtml(existing.orderRef||"")+'">'+(person.trade==="kerites" ? '<p class="muted" id="f-crew-preview" style="font-size:.78rem;margin-top:.4rem"></p>' : '')+'</div>' +
     timeFields +
     (itemsLabel ? '<label>'+itemsLabel+'</label>' : '') + counters +
     extraFields +
@@ -1031,8 +1064,16 @@ function renderEntry(){
     };
   });
   if (person.trade === "kerites"){
+    function updateCrewPreview(){
+      var previewEl = document.getElementById("f-crew-preview");
+      if (!previewEl) return;
+      var orderRefVal = (document.getElementById("f-order")||{}).value || "";
+      var dateVal = (document.getElementById("f-date")||{}).value || date;
+      previewEl.textContent = keritesCrewPreviewText(orderRefVal, dateVal, person.id);
+    }
+    updateCrewPreview();
     var fOrder = document.getElementById("f-order");
-    if (fOrder) fOrder.oninput = function(){ clearFieldError("f-order-field"); };
+    if (fOrder) fOrder.oninput = function(){ clearFieldError("f-order-field"); updateCrewPreview(); };
     var fWs = document.getElementById("f-work-start");
     if (fWs) fWs.onchange = function(){ clearFieldError("f-work-start-field"); clearFieldError("f-work-end-field"); };
     var fWe = document.getElementById("f-work-end");
@@ -1190,7 +1231,7 @@ function renderAdminPin(){
 function renderAdmin(){
   if (!nav.adminAuthed){ nav.view="adminpin"; return render(); }
   var trade = nav.adminTrade, month = nav.adminMonth, tab = nav.adminTab || "overview";
-  if ((tab==="addresses" || tab==="crewcheck") && trade!=="kerites") tab = "overview";
+  if ((tab==="addresses" || tab==="crewcheck" || tab==="simulator") && trade!=="kerites") tab = "overview";
   var people = STATE.people.filter(function(p){ return p.trade===trade; });
   var locked = isLocked(trade, month);
   var showMonthFilter = (tab==="overview" || tab==="payroll" || tab==="personMonth" || tab==="crewcheck");
@@ -1205,6 +1246,7 @@ function renderAdmin(){
   ];
   if (trade==="kerites") navItems.push({ key:"addresses", label:"🏠 Címek" });
   if (trade==="kerites") navItems.push({ key:"crewcheck", label:"⚠️ Létszám-eltérések" });
+  if (trade==="kerites") navItems.push({ key:"simulator", label:"🧮 Szimulátor" });
   navItems.push({ key:"reports", label:"📊 Kimutatások" });
   navItems.push({ key:"settings", label:"⚙️ Beállítások" });
   var sidebar = '<div class="admin-sidebar">' + navItems.map(function(it){
@@ -1234,6 +1276,7 @@ function renderAdmin(){
   else if (tab==="personMonth") content = buildPersonMonthTab(personMonthPerson, month, locked);
   else if (tab==="addresses") content = buildAddressesTab(nav.adminYear);
   else if (tab==="crewcheck") content = buildCrewCheckTab(month);
+  else if (tab==="simulator") content = buildSimulatorTab();
   else if (tab==="reports") content = buildReportsTab(people, trade);
   else content = buildSettingsTab();
 
@@ -1271,6 +1314,7 @@ function renderAdmin(){
   else if (tab==="personMonth") wirePersonMonthTab(personMonthPerson, month, locked);
   else if (tab==="addresses") wireAddressesTab();
   else if (tab==="crewcheck"){ /* no interactive elements to wire */ }
+  else if (tab==="simulator") wireSimulatorTab();
   else if (tab==="reports") wireReportsTab();
   else wireSettingsTab();
 
@@ -1794,6 +1838,82 @@ function buildCrewCheckTab(month){
     (mismatches.length
       ? '<div class="matrix-scroll"><table class="summary-table"><thead><tr><th>Dátum</th><th>Szerelő</th><th>Rendelésszám</th><th>Bevallott létszám</th><th>Ténylegesen azonosított</th><th>Többiek</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
       : '<p class="pill ok">Nincs eltérés ebben a hónapban.</p>');
+}
+
+function buildSimulatorTab(){
+  var items = STATE.catalog.kerites.items;
+  function simRow(it){
+    if (it.override){
+      return '<div class="counter" data-sim-key="'+it.key+'">' +
+        '<div><span class="lbl">'+escapeHtml(it.label)+'</span><span class="price mono">'+it.hoursPerUnit+' óra (fix)</span></div>' +
+        '<input type="checkbox" class="override-check" data-sim-check style="width:1.6rem;height:1.6rem">' +
+        '</div>';
+    }
+    return '<div class="counter" data-sim-key="'+it.key+'">' +
+      '<div><span class="lbl">'+escapeHtml(it.label)+'</span><span class="price mono">'+it.hoursPerUnit+' óra/db</span></div>' +
+      '<div class="stepper"><button type="button" data-d="-1">–</button><input type="number" inputmode="numeric" class="qty mono" data-sim-qty min="0" value="0"><button type="button" data-d="1">+</button></div>' +
+      '</div>';
+  }
+  return '<h1 class="admin-h1">Bérszámítás-szimulátor (kerítés)</h1>' +
+    '<p class="muted" style="max-width:62ch;margin-bottom:1rem">Kézzel beállított adatokkal kiszámolja, mennyi teljesítményórát és bért eredményezne egy adott kombináció — valódi bejegyzés létrehozása nélkül. Hasznos a létszám-korrekció vagy egy vitás bér ellenőrzéséhez.</p>' +
+    '<div class="card" style="max-width:520px">' +
+      '<div class="field"><label>Dátum</label><input type="date" id="sim-date" value="'+todayStr()+'"></div>' +
+      '<div class="row">' +
+        '<div class="field"><label>Munkakezdés</label><input type="time" id="sim-start" value="06:30"></div>' +
+        '<div class="field"><label>Munkavég</label><input type="time" id="sim-end" value="15:30"></div>' +
+      '</div>' +
+      '<div class="row">' +
+        '<div class="field"><label>Szimulált létszám</label><input type="number" id="sim-crew" min="1" max="10" value="2"></div>' +
+        '<div class="field"><label>Órabér (Ft/óra)</label><input type="number" id="sim-rate" value="2200"></div>' +
+      '</div>' +
+      '<label>Tételek</label><div class="counter-list">'+items.map(simRow).join("")+'</div>' +
+      '<button class="primary" id="sim-calc" style="margin-top:.9rem">Számolás</button>' +
+    '</div>' +
+    '<div class="card" id="sim-result" style="max-width:520px;margin-top:1rem;display:none"></div>';
+}
+function wireSimulatorTab(){
+  document.querySelectorAll('[data-sim-key] .stepper button').forEach(function(btn){
+    btn.onclick = function(){
+      var qtyEl = btn.parentElement.querySelector('[data-sim-qty]');
+      var v = (parseInt(qtyEl.value,10)||0) + parseInt(btn.getAttribute('data-d'),10);
+      if (v<0) v=0;
+      qtyEl.value = v;
+    };
+  });
+  document.getElementById('sim-calc').onclick = function(){
+    var items = {};
+    document.querySelectorAll('[data-sim-key]').forEach(function(row){
+      var key = row.getAttribute('data-sim-key');
+      var checkEl = row.querySelector('[data-sim-check]');
+      var v = checkEl ? (checkEl.checked?1:0) : (parseInt(row.querySelector('[data-sim-qty]').value,10)||0);
+      if (v>0) items[key] = v;
+    });
+    var dateVal = document.getElementById('sim-date').value;
+    var crew = parseInt(document.getElementById('sim-crew').value,10)||1;
+    var rate = parseFloat(document.getElementById('sim-rate').value)||0;
+    var ws = document.getElementById('sim-start').value;
+    var we = document.getElementById('sim-end').value;
+    var sim = simulateKeritesPerf(items, crew, dateVal);
+    var clocked = (ws && we) ? (timeToDecimal(we)-timeToDecimal(ws)) : null;
+    if (clocked!=null && clocked<=0) clocked = null;
+    var topUp = (clocked!=null && clocked>sim.perf) ? (clocked-sim.perf) : 0;
+    var payHours = clocked!=null ? Math.max(sim.perf, clocked) : sim.perf;
+    var value = payHours * rate;
+    var noteText = sim.overrideLabel
+      ? 'Fix díjas tétel ('+escapeHtml(sim.overrideLabel)+') — a létszám-korrekció erre nem vonatkozik.'
+      : (crew < 3 ? 'Létszám-korrekció 3 fő alatt nem lép életbe.'
+        : (sim.crewAdjustApplied ? 'Létszám-korrekció alkalmazva ('+crew+' fő → 2 főre kalibrálva).'
+          : 'Létszám-korrekció NEM alkalmazva (a dátum korábbi, mint 2026.10.01, vagy a kapcsoló ki van kapcsolva).'));
+    var resultEl = document.getElementById('sim-result');
+    resultEl.style.display = '';
+    resultEl.innerHTML =
+      '<div class="recent-item"><span>Teljesítmény óra</span><span class="mono">'+sim.perf.toFixed(2)+' óra</span></div>' +
+      (clocked!=null ? '<div class="recent-item"><span>Ledolgozott idő</span><span class="mono">'+clocked.toFixed(2)+' óra</span></div>' : '') +
+      (topUp>0.001 ? '<div class="recent-item"><span>Órabéres pótlás</span><span class="mono">+'+topUp.toFixed(2)+' óra</span></div>' : '') +
+      '<div class="recent-item"><strong>Fizetendő (1 főre)</strong><strong class="mono">'+fmtFt(value)+'</strong></div>' +
+      '<p class="muted" style="font-size:.78rem;margin-top:.6rem">'+noteText+'</p>';
+  };
+  wireNav();
 }
 
 function personMonthTotal(person, trade, m){
