@@ -90,8 +90,7 @@
 var SUPABASE_URL = "https://dsplewmrhsqhravvwsrz.supabase.co";
 var SUPABASE_KEY = "sb_publishable_DMQBV_zrCbCXapG1px8Gug_BJw5qETo";
 
-/* ---------- Probléma-fotó (teszt funkció, csak a teszt fióknál látszik) ---------- */
-var PHOTO_FEATURE_PERSON_IDS = ["teszt"];
+/* ---------- Probléma-fotó ---------- */
 var MAX_ENTRY_PHOTOS = 4;
 var PHOTO_MAX_DIM = 1600;
 var PHOTO_QUALITY = 0.75;
@@ -974,7 +973,7 @@ function renderEntry(){
   if (!person){ nav.view="landing"; return render(); }
   var date = nav.editDate || todayStr();
   var existing = entryFor(person.id, date) || { items:{}, comment:"", dayType:"work", orderRef:"", assemblyHours:0, bontasFestesOra:0, garanciaEgyebOra:0, workStart:"", workEnd:"", crewSize:null, problemType:null, photos:[] };
-  var photosEnabled = PHOTO_FEATURE_PERSON_IDS.indexOf(person.id) !== -1;
+  var photosEnabled = true;
   var minDateStr = minEditableDateStr(person.trade);
   var locked = isLocked(person.trade, date.slice(0,7));
 
@@ -1060,7 +1059,7 @@ function renderEntry(){
       KERITES_PROBLEM_TYPES.map(function(t){ return '<option value="'+escapeHtml(t)+'"'+(existing.problemType===t?" selected":"")+'>'+escapeHtml(t)+'</option>'; }).join("") +
       '</select></div>' +
       (photosEnabled ? (
-        '<div class="field" id="f-photos-field" style="margin-top:.9rem;display:none"><label>Fotó a hibáról <span style="font-weight:400;color:var(--ink-muted)">(teszt funkció)</span></label>' +
+        '<div class="field" id="f-photos-field" style="margin-top:.9rem;display:none"><label>Fotó a hibáról</label>' +
         '<div class="photo-grid" id="photo-grid"></div>' +
         '<input type="file" accept="image/*" capture="environment" id="f-photo-input" style="display:none">' +
         '</div>'
