@@ -90,6 +90,12 @@
 var SUPABASE_URL = "https://dsplewmrhsqhravvwsrz.supabase.co";
 var SUPABASE_KEY = "sb_publishable_DMQBV_zrCbCXapG1px8Gug_BJw5qETo";
 
+/* ---------- Probléma-fotó (teszt funkció, csak a teszt fióknál látszik) ---------- */
+var PHOTO_FEATURE_PERSON_IDS = ["teszt"];
+var MAX_ENTRY_PHOTOS = 4;
+var PHOTO_MAX_DIM = 1600;
+var PHOTO_QUALITY = 0.75;
+
 /* ---------- CSS ---------- */
 var APP_CSS = [
 ":root{",
@@ -161,6 +167,11 @@ var APP_CSS = [
 ".addr-status-btn.active[data-addrstatus=done]{background:var(--ok);color:#fff;border-color:var(--ok);}",
 ".addr-status-btn.active[data-addrstatus=continue]{background:var(--warn);color:#fff;border-color:var(--warn);}",
 ".addr-status-btn.active[data-addrstatus=problem]{background:var(--flag);color:#fff;border-color:var(--flag);}",
+".photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:.5rem;margin-top:.5rem;}",
+".photo-thumb{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:var(--surface-2);}",
+".photo-thumb img{width:100%;height:100%;object-fit:cover;display:block;}",
+".photo-remove{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;border:none;background:rgba(26,22,15,.72);color:#fff;font-size:.9rem;line-height:1;cursor:pointer;}",
+".photo-add-btn{aspect-ratio:1;border-radius:10px;border:2px dashed var(--line);background:transparent;display:flex;align-items:center;justify-content:center;font-size:1.4rem;cursor:pointer;color:var(--ink-muted);}",
 ".counter-list{display:flex;flex-direction:column;gap:.5rem;}",
 ".item-group{border:1px solid var(--line);border-radius:12px;padding:.8rem;margin-bottom:.8rem;}",
 ".item-group-title{font-weight:700;font-size:.76rem;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);margin-bottom:.6rem;}",
@@ -640,6 +651,48 @@ function sbUpsert(table, rows, conflictCols){
   });
 }
 function sbFail(){ toast("Nincs internet, vagy a szerver nem elérhető — próbáld újra."); }
+function photoPublicUrl(path){
+  return SUPABASE_URL + "/storage/v1/object/public/entry-photos/" + path;
+}
+function compressImageFile(file, maxDim, quality){
+  return new Promise(function(resolve, reject){
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function(){
+      var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      var cw = Math.max(1, Math.round(img.width * scale));
+      var ch = Math.max(1, Math.round(img.height * scale));
+      var canvas = document.createElement("canvas");
+      canvas.width = cw; canvas.height = ch;
+      canvas.getContext("2d").drawImage(img, 0, 0, cw, ch);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(function(blob){
+        if (blob) resolve(blob); else reject(new Error("compress failed"));
+      }, "image/jpeg", quality);
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error("image load failed")); };
+    img.src = url;
+  });
+}
+function uploadEntryPhoto(entryId, blob){
+  var filename = entryId + "/" + Date.now() + "-" + Math.random().toString(36).slice(2,8) + ".jpg";
+  return fetch(SUPABASE_URL + "/storage/v1/object/entry-photos/" + filename, {
+    method: "POST",
+    headers: { apikey: SUPABASE_KEY, Authorization: "Bearer " + SUPABASE_KEY, "Content-Type": "image/jpeg" },
+    body: blob
+  }).then(function(r){
+    if (!r.ok) return r.text().then(function(t){ throw new Error(t); });
+    return sb("entry_photos", { method:"POST", body:[{ entry_id: entryId, path: filename }], prefer:"return=minimal" });
+  });
+}
+function deleteEntryPhoto(photo){
+  return fetch(SUPABASE_URL + "/storage/v1/object/entry-photos/" + photo.path, {
+    method: "DELETE",
+    headers: { apikey: SUPABASE_KEY, Authorization: "Bearer " + SUPABASE_KEY }
+  }).then(function(){
+    return sb("entry_photos?id=eq." + photo.id, { method:"DELETE", prefer:"return=minimal" });
+  });
+}
 function roleToKey(role){
   if (role === "Vezető szerelő") return "vezeto";
   if (role === "Segéd szerelő") return "seged";
@@ -660,7 +713,8 @@ function loadState(afterOk){
     sb("catalog_items?select=*&order=sort_order"),
     sb("entries?deleted_at=is.null&select=*,entry_items(item_key,qty)"),
     sb("extras?deleted_at=is.null&select=*"),
-    sb("month_locks?select=*")
+    sb("month_locks?select=*"),
+    sb("entry_photos?select=*")
   ]).then(function(r){
     var settings = (r[0] && r[0][0]) || { admin_pin:"1234", assembly_hourly_rate:0, kerites_utazas_hours:0, kerites_jarulekos_hours:0, kerites_job_level_pay:false, kerites_crew_adjust:true };
     var dailyPay = { vacation:{vezeto:0,seged:0}, sick:{vezeto:0,seged:0} };
@@ -693,16 +747,22 @@ function loadState(afterOk){
       kerites: { fixedDailyHours: { utazas: settings.kerites_utazas_hours||0, jarulekos: settings.kerites_jarulekos_hours||0 }, items: keritesItems }
     };
 
+    var photosByEntryId = {};
+    (r[8]||[]).forEach(function(row){
+      (photosByEntryId[row.entry_id] = photosByEntryId[row.entry_id] || []).push({ id: row.id, path: row.path });
+    });
     var entries = (r[5]||[]).map(function(row){
       var items = {};
       (row.entry_items||[]).forEach(function(ei){ items[ei.item_key] = ei.qty; });
       return {
+        id: row.id,
         personId: row.person_id, date: row.date, trade: row.trade, dayType: row.day_type,
         items: items, orderRef: row.order_ref||"", assemblyHours: row.assembly_hours||0,
         bontasFestesOra: row.bontas_festes_ora||0, garanciaEgyebOra: row.garancia_egyeb_ora||0,
         workStart: row.work_start ? row.work_start.slice(0,5) : "", workEnd: row.work_end ? row.work_end.slice(0,5) : "",
         comment: row.comment||"", submittedAt: row.submitted_at, reviewedOk: row.reviewed_ok||false,
-        addressStatus: row.address_status||null, crewSize: row.crew_size||null, problemType: row.problem_type||null
+        addressStatus: row.address_status||null, crewSize: row.crew_size||null, problemType: row.problem_type||null,
+        photos: photosByEntryId[row.id] || []
       };
     });
     var extras = (r[6]||[]).map(function(row){ return { id:row.id, personId:row.person_id, month:row.month, label:row.label||"", amount:row.amount||0 }; });
@@ -913,7 +973,8 @@ function renderEntry(){
   var person = getPerson(nav.personId);
   if (!person){ nav.view="landing"; return render(); }
   var date = nav.editDate || todayStr();
-  var existing = entryFor(person.id, date) || { items:{}, comment:"", dayType:"work", orderRef:"", assemblyHours:0, bontasFestesOra:0, garanciaEgyebOra:0, workStart:"", workEnd:"", crewSize:null, problemType:null };
+  var existing = entryFor(person.id, date) || { items:{}, comment:"", dayType:"work", orderRef:"", assemblyHours:0, bontasFestesOra:0, garanciaEgyebOra:0, workStart:"", workEnd:"", crewSize:null, problemType:null, photos:[] };
+  var photosEnabled = PHOTO_FEATURE_PERSON_IDS.indexOf(person.id) !== -1;
   var minDateStr = minEditableDateStr(person.trade);
   var locked = isLocked(person.trade, date.slice(0,7));
 
@@ -997,7 +1058,13 @@ function renderEntry(){
       '<div class="field" id="problem-type-field" style="margin-top:.9rem;display:none"><label>Hiba típusa <span style="color:var(--flag)">*</span></label>' +
       '<select id="f-problem-type"><option value=""'+(!existing.problemType?" selected":"")+'>— válassz —</option>' +
       KERITES_PROBLEM_TYPES.map(function(t){ return '<option value="'+escapeHtml(t)+'"'+(existing.problemType===t?" selected":"")+'>'+escapeHtml(t)+'</option>'; }).join("") +
-      '</select></div>';
+      '</select></div>' +
+      (photosEnabled ? (
+        '<div class="field" id="f-photos-field" style="margin-top:.9rem;display:none"><label>Fotó a hibáról <span style="font-weight:400;color:var(--ink-muted)">(teszt funkció)</span></label>' +
+        '<div class="photo-grid" id="photo-grid"></div>' +
+        '<input type="file" accept="image/*" capture="environment" id="f-photo-input" style="display:none">' +
+        '</div>'
+      ) : '');
   }
 
   var recent = STATE.entries.filter(function(e){ return e.personId===person.id; })
@@ -1050,6 +1117,8 @@ function renderEntry(){
     });
     var ptf = document.getElementById("problem-type-field");
     if (ptf) ptf.style.display = addressStatus==="problem" ? "" : "none";
+    var pf = document.getElementById("f-photos-field");
+    if (pf) pf.style.display = addressStatus==="problem" ? "" : "none";
   }
   syncDayTypeUi();
   syncAddrStatusUi();
@@ -1084,6 +1153,54 @@ function renderEntry(){
     if (fPType) fPType.onchange = function(){ clearFieldError("problem-type-field"); };
     var fComment = document.getElementById("f-comment");
     if (fComment) fComment.oninput = function(){ clearFieldError("f-comment-field"); };
+  }
+
+  var existingPhotos = (existing.photos||[]).slice();
+  var removedPhotoIds = [];
+  var pendingPhotos = [];
+  function activePhotoCount(){
+    return existingPhotos.filter(function(p){ return removedPhotoIds.indexOf(String(p.id)) === -1; }).length + pendingPhotos.length;
+  }
+  function renderPhotoGrid(){
+    var grid = document.getElementById("photo-grid");
+    if (!grid) return;
+    var html = "";
+    existingPhotos.forEach(function(p){
+      if (removedPhotoIds.indexOf(String(p.id)) !== -1) return;
+      html += '<div class="photo-thumb"><img src="'+photoPublicUrl(p.path)+'"><button type="button" class="photo-remove" data-existing="'+p.id+'">×</button></div>';
+    });
+    pendingPhotos.forEach(function(p, idx){
+      html += '<div class="photo-thumb"><img src="'+p.previewUrl+'"><button type="button" class="photo-remove" data-pending="'+idx+'">×</button></div>';
+    });
+    if (activePhotoCount() < MAX_ENTRY_PHOTOS){
+      html += '<button type="button" class="photo-add-btn" id="photo-add-btn">📷</button>';
+    }
+    grid.innerHTML = html;
+    var addBtn = document.getElementById("photo-add-btn");
+    if (addBtn) addBtn.onclick = function(){ document.getElementById("f-photo-input").click(); };
+    grid.querySelectorAll(".photo-remove").forEach(function(btn){
+      btn.onclick = function(){
+        if (btn.hasAttribute("data-existing")){
+          removedPhotoIds.push(btn.getAttribute("data-existing"));
+        } else {
+          pendingPhotos.splice(parseInt(btn.getAttribute("data-pending"),10), 1);
+        }
+        renderPhotoGrid();
+      };
+    });
+  }
+  if (photosEnabled){
+    renderPhotoGrid();
+    var fPhotoInput = document.getElementById("f-photo-input");
+    if (fPhotoInput) fPhotoInput.onchange = function(e){
+      var file = e.target.files && e.target.files[0];
+      e.target.value = "";
+      if (!file) return;
+      compressImageFile(file, PHOTO_MAX_DIM, PHOTO_QUALITY).then(function(blob){
+        pendingPhotos.push({ blob: blob, previewUrl: URL.createObjectURL(blob) });
+        renderPhotoGrid();
+      }).catch(function(){ toast("Nem sikerült feldolgozni a fotót."); });
+    };
   }
 
   document.querySelectorAll(".counter").forEach(function(row){
@@ -1170,11 +1287,31 @@ function renderEntry(){
       problemType: (person.trade==="kerites" && dayType==="work" && addressStatus==="problem") ? (document.getElementById("f-problem-type")||{}).value : null,
       submittedAt: new Date().toISOString()
     };
+    function finishSave(){ toast("Mentve! Köszi a munkát."); render(); }
+    function syncEntryPhotos(){
+      sb("entries?person_id=eq."+encodeURIComponent(person.id)+"&date=eq."+entry.date+"&select=id").then(function(rows){
+        var entryId = rows && rows[0] && rows[0].id;
+        if (!entryId){ finishSave(); return; }
+        var ops = [];
+        removedPhotoIds.forEach(function(pid){
+          var p = existingPhotos.filter(function(x){ return String(x.id)===String(pid); })[0];
+          if (p) ops.push(deleteEntryPhoto(p));
+        });
+        pendingPhotos.forEach(function(p){ ops.push(uploadEntryPhoto(entryId, p.blob)); });
+        Promise.all(ops).then(finishSave).catch(function(){
+          toast("Mentve, de a fotók feltöltésekor hiba történt.");
+          render();
+        });
+      }).catch(finishSave);
+    }
     function doSave(){
       var idx = STATE.entries.findIndex(function(e){ return e.personId===person.id && e.date===entry.date; });
       if (idx>=0) STATE.entries[idx] = entry; else STATE.entries.push(entry);
       nav.editDate = null;
-      saveEntries([entry], function(){ toast("Mentve! Köszi a munkát."); render(); });
+      saveEntries([entry], function(){
+        if (photosEnabled && (pendingPhotos.length || removedPhotoIds.length)) syncEntryPhotos();
+        else finishSave();
+      });
     }
 
     if (isHourAnomaly(entry)){
