@@ -2161,7 +2161,7 @@ function computeKeritesEverProblemJobs(year){
       currentStatus: last.addressStatus || null,
       lastDate: last.date,
       installerNames: installerIds.map(function(id){ var p=getPerson(id); return p?p.name:id; }),
-      problems: problemEntries.map(function(e){ return { personId:e.personId, date:e.date, comment:e.comment||"", problemType:e.problemType||null, personName:(getPerson(e.personId)||{}).name||e.personId }; })
+      problems: problemEntries.map(function(e){ return { personId:e.personId, date:e.date, comment:e.comment||"", problemType:e.problemType||null, personName:(getPerson(e.personId)||{}).name||e.personId, photos:e.photos||[] }; })
     });
   });
   result.sort(function(a,b){ return b.lastDate.localeCompare(a.lastDate); });
@@ -2184,7 +2184,12 @@ function problemJobRowHtml(j){
             '<option value="">— hibatípus megadása —</option>' +
             KERITES_PROBLEM_TYPES.map(function(t){ return '<option value="'+escapeHtml(t)+'">'+escapeHtml(t)+'</option>'; }).join("") +
             '</select>';
-        return '<div style="color:var(--flag);margin-bottom:.25rem">✕ '+escapeHtml(fmtDate(p.date))+' · '+escapeHtml(p.personName)+(p.comment?': "'+escapeHtml(p.comment)+'"':'')+typeHtml+'</div>';
+        var photosHtml = (p.photos && p.photos.length)
+          ? '<div style="display:flex;gap:.4rem;margin:.3rem 0 .5rem">' + p.photos.map(function(ph){
+              return '<a href="'+photoPublicUrl(ph.path)+'" target="_blank" rel="noopener"><img src="'+photoPublicUrl(ph.path)+'" style="width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid var(--line)" loading="lazy"></a>';
+            }).join("") + '</div>'
+          : '';
+        return '<div style="color:var(--flag);margin-bottom:.25rem">✕ '+escapeHtml(fmtDate(p.date))+' · '+escapeHtml(p.personName)+(p.comment?': "'+escapeHtml(p.comment)+'"':'')+typeHtml+'</div>' + photosHtml;
       }).join("") +
     '</div>' +
     '</div>';
