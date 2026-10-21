@@ -1166,7 +1166,7 @@ function renderEntry(){
     var html = "";
     existingPhotos.forEach(function(p){
       if (removedPhotoIds.indexOf(String(p.id)) !== -1) return;
-      html += '<div class="photo-thumb"><img src="'+photoPublicUrl(p.path)+'"><button type="button" class="photo-remove" data-existing="'+p.id+'">×</button></div>';
+      html += '<div class="photo-thumb"><img src="'+photoPublicUrl(p.path)+'"></div>';
     });
     pendingPhotos.forEach(function(p, idx){
       html += '<div class="photo-thumb"><img src="'+p.previewUrl+'"><button type="button" class="photo-remove" data-pending="'+idx+'">×</button></div>';
@@ -1179,11 +1179,7 @@ function renderEntry(){
     if (addBtn) addBtn.onclick = function(){ document.getElementById("f-photo-input").click(); };
     grid.querySelectorAll(".photo-remove").forEach(function(btn){
       btn.onclick = function(){
-        if (btn.hasAttribute("data-existing")){
-          removedPhotoIds.push(btn.getAttribute("data-existing"));
-        } else {
-          pendingPhotos.splice(parseInt(btn.getAttribute("data-pending"),10), 1);
-        }
+        pendingPhotos.splice(parseInt(btn.getAttribute("data-pending"),10), 1);
         renderPhotoGrid();
       };
     });
