@@ -1926,9 +1926,11 @@ function buildPayrollTab(people, trade, month){
     var totalNew = pieceNew + extrasTotal + bonus;
     grand += total; grandNew += totalNew;
     var diff = totalNew - total;
+    var score = (showCompare && p.hourlyRate) ? (workPiece / p.hourlyRate) : null;
     return '<tr><td><strong>'+escapeHtml(p.name)+'</strong><div class="muted" style="font-size:.76rem">'+wd+' munkanap · '+vd+' szabadság · '+sd+' beteg'+(topUpHours>0.001?' · '+topUpHours.toFixed(1)+' óra pótlás':'')+'</div></td>' +
       '<td class="mono">'+fmtFt(workPiece)+'</td>' +
       (showCompare ? '<td class="mono">'+fmtFt(workPieceNew)+'</td>' : '') +
+      (showCompare ? '<td class="mono">'+(score!=null?score.toFixed(1):"—")+'</td>' : '') +
       '<td class="mono"'+(vacSickPay>0?'':' style="color:var(--ink-muted)"')+'>'+(vacSickPay>0?fmtFt(vacSickPay):"—")+'</td>' +
       '<td><div class="extras-list" data-person="'+p.id+'">' +
         extras.map(function(x){
@@ -1949,9 +1951,9 @@ function buildPayrollTab(people, trade, month){
     (showCompare ? '<div class="stat-tile"><span class="n mono" style="color:var(--ink-muted)">'+fmtFt(grand)+'</span><span class="l">Jelenlegi logika szerint</span></div><div class="stat-tile"><span class="n mono">'+fmtFt(grandNew)+'</span><span class="l">Új, munka-szintű logika szerint</span></div><div class="stat-tile"><span class="n mono" style="color:var(--flag)">'+fmtFt(grandDiff)+'</span><span class="l">Különbség</span></div>' : '') +
     '</div>' +
     (showCompare ? '<p class="muted" style="font-size:.8rem;margin:.6rem 0 1rem">A két oszlop összehasonlításra szolgál — a ténylegesen hivatalosnak számító oszlopot a Beállításoknál lévő, munka-szintű kapcsoló dönti el, jelenleg: <strong>'+(STATE.keritesJobLevelPay?"Új, munka-szintű":"Jelenlegi, napi")+'</strong>. A létszámmal korrigált teljesítményóra ettől függetlenül, külön kapcsolóval megy — jelenleg <strong>'+(STATE.keritesCrewAdjust?"bekapcsolva":"kikapcsolva")+'</strong>, 2026.10.01-től mindkét oszlopban érvényesül.</p>' : '') +
-    '<div class="matrix-scroll"><table class="summary-table"><thead><tr><th>Szerelő</th><th>Teljesítmény bér (jelenlegi)</th>'+(showCompare?'<th>Teljesítmény bér (új, teszt)</th>':'')+'<th>Szabadság / beteg napidíj</th><th>Extra tételek</th><th>Jelenléti bónusz</th><th>Végösszeg (jelenlegi)</th>'+(showCompare?'<th>Végösszeg (új, teszt)</th><th>Különbség</th>':'')+'</tr></thead>' +
+    '<div class="matrix-scroll"><table class="summary-table"><thead><tr><th>Szerelő</th><th>Teljesítmény bér (jelenlegi)</th>'+(showCompare?'<th>Teljesítmény bér (új, teszt)</th><th>Pontszám</th>':'')+'<th>Szabadság / beteg napidíj</th><th>Extra tételek</th><th>Jelenléti bónusz</th><th>Végösszeg (jelenlegi)</th>'+(showCompare?'<th>Végösszeg (új, teszt)</th><th>Különbség</th>':'')+'</tr></thead>' +
     '<tbody>'+rows+'</tbody>' +
-    '<tfoot><tr><td>Összesen</td><td></td>'+(showCompare?'<td></td>':'')+'<td class="mono">'+fmtFt(grandVacSick)+'</td><td></td><td></td><td class="mono">'+fmtFt(grand)+'</td>'+(showCompare?'<td class="mono">'+fmtFt(grandNew)+'</td><td class="mono">'+fmtFt(grandDiff)+'</td>':'')+'</tr></tfoot></table></div>';
+    '<tfoot><tr><td>Összesen</td><td></td>'+(showCompare?'<td></td><td></td>':'')+'<td class="mono">'+fmtFt(grandVacSick)+'</td><td></td><td></td><td class="mono">'+fmtFt(grand)+'</td>'+(showCompare?'<td class="mono">'+fmtFt(grandNew)+'</td><td class="mono">'+fmtFt(grandDiff)+'</td>':'')+'</tr></tfoot></table></div>';
 }
 function wirePayrollTab(people, trade, month){
   document.querySelectorAll("[data-extra-add]").forEach(function(btn){
