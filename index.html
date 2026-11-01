@@ -583,6 +583,45 @@ function monthPieceTotalEffective(personId, month, trade){
   if (trade==="kerites" && STATE.keritesJobLevelPay) return monthPieceTotalKeritesNew(personId, month);
   return monthPieceTotal(personId, month);
 }
+function monthVacSickPayTotal(personId, month){
+  var person = getPerson(personId), sum=0;
+  monthEntries(personId, month).forEach(function(e){
+    if (e.dayType==="vacation" || e.dayType==="sick") sum += calcEntryValue(e, person);
+  });
+  return sum;
+}
+function monthWorkPieceTotal(personId, month){
+  var person = getPerson(personId), sum=0;
+  monthEntries(personId, month).forEach(function(e){
+    if (e.dayType==="work") sum += calcEntryValue(e, person);
+  });
+  return sum;
+}
+function monthWorkPieceTotalKeritesNew(personId, month){
+  var person = getPerson(personId);
+  var allEntries = monthEntries(personId, month);
+  var total = 0, byJob = {};
+  allEntries.forEach(function(e){
+    if (e.dayType !== "work") return;
+    var entryYear = parseInt(e.date.slice(0,4),10);
+    var parsed = parseJobId(e.orderRef, entryYear);
+    var b = keritesHourBreakdown(e);
+    if (!parsed || b.overrideItem){
+      var payHours = (b.clocked!=null) ? Math.max(b.perf,b.clocked) : b.perf;
+      total += payHours * (person.hourlyRate||0);
+      return;
+    }
+    if (!byJob[parsed.key]) byJob[parsed.key] = { perf:0, clocked:0, anyClocked:false };
+    byJob[parsed.key].perf += b.perf;
+    if (b.clocked!=null){ byJob[parsed.key].clocked += b.clocked; byJob[parsed.key].anyClocked = true; }
+  });
+  Object.keys(byJob).forEach(function(key){
+    var g = byJob[key];
+    var payHours = g.anyClocked ? Math.max(g.perf, g.clocked) : g.perf;
+    total += payHours * (person.hourlyRate||0);
+  });
+  return total;
+}
 function computeKeritesCrewMismatches(month){
   var mismatches = [];
   STATE.entries.forEach(function(e){
@@ -1863,10 +1902,14 @@ function wirePersonMonthTab(person, month, locked){
 
 function buildPayrollTab(people, trade, month){
   var showCompare = trade==="kerites";
-  var grand = 0, grandNew = 0;
+  var grand = 0, grandNew = 0, grandVacSick = 0;
   var rows = people.map(function(p){
     var piece = monthPieceTotal(p.id, month);
     var pieceNew = showCompare ? monthPieceTotalKeritesNew(p.id, month) : piece;
+    var workPiece = monthWorkPieceTotal(p.id, month);
+    var workPieceNew = showCompare ? monthWorkPieceTotalKeritesNew(p.id, month) : workPiece;
+    var vacSickPay = monthVacSickPayTotal(p.id, month);
+    grandVacSick += vacSickPay;
     var extras = STATE.extras.filter(function(x){ return x.personId===p.id && x.month===month; });
     var extrasTotal = extras.reduce(function(s,x){ return s+(x.amount||0); },0);
     var wd = monthEntries(p.id, month).filter(function(e){ return e.dayType==="work"; }).length;
@@ -1884,8 +1927,9 @@ function buildPayrollTab(people, trade, month){
     grand += total; grandNew += totalNew;
     var diff = totalNew - total;
     return '<tr><td><strong>'+escapeHtml(p.name)+'</strong><div class="muted" style="font-size:.76rem">'+wd+' munkanap · '+vd+' szabadság · '+sd+' beteg'+(topUpHours>0.001?' · '+topUpHours.toFixed(1)+' óra pótlás':'')+'</div></td>' +
-      '<td class="mono">'+fmtFt(piece)+'</td>' +
-      (showCompare ? '<td class="mono">'+fmtFt(pieceNew)+'</td>' : '') +
+      '<td class="mono">'+fmtFt(workPiece)+'</td>' +
+      (showCompare ? '<td class="mono">'+fmtFt(workPieceNew)+'</td>' : '') +
+      '<td class="mono"'+(vacSickPay>0?'':' style="color:var(--ink-muted)"')+'>'+(vacSickPay>0?fmtFt(vacSickPay):"—")+'</td>' +
       '<td><div class="extras-list" data-person="'+p.id+'">' +
         extras.map(function(x){
           return '<div class="extra-row"><input type="text" value="'+escapeHtml(x.label)+'" data-extra-label="'+x.id+'">' +
@@ -1905,9 +1949,9 @@ function buildPayrollTab(people, trade, month){
     (showCompare ? '<div class="stat-tile"><span class="n mono" style="color:var(--ink-muted)">'+fmtFt(grand)+'</span><span class="l">Jelenlegi logika szerint</span></div><div class="stat-tile"><span class="n mono">'+fmtFt(grandNew)+'</span><span class="l">Új, munka-szintű logika szerint</span></div><div class="stat-tile"><span class="n mono" style="color:var(--flag)">'+fmtFt(grandDiff)+'</span><span class="l">Különbség</span></div>' : '') +
     '</div>' +
     (showCompare ? '<p class="muted" style="font-size:.8rem;margin:.6rem 0 1rem">A két oszlop összehasonlításra szolgál — a ténylegesen hivatalosnak számító oszlopot a Beállításoknál lévő, munka-szintű kapcsoló dönti el, jelenleg: <strong>'+(STATE.keritesJobLevelPay?"Új, munka-szintű":"Jelenlegi, napi")+'</strong>. A létszámmal korrigált teljesítményóra ettől függetlenül, külön kapcsolóval megy — jelenleg <strong>'+(STATE.keritesCrewAdjust?"bekapcsolva":"kikapcsolva")+'</strong>, 2026.10.01-től mindkét oszlopban érvényesül.</p>' : '') +
-    '<div class="matrix-scroll"><table class="summary-table"><thead><tr><th>Szerelő</th><th>Teljesítmény (jelenlegi)</th>'+(showCompare?'<th>Teljesítmény (új, teszt)</th>':'')+'<th>Extra tételek</th><th>Jelenléti bónusz</th><th>Végösszeg (jelenlegi)</th>'+(showCompare?'<th>Végösszeg (új, teszt)</th><th>Különbség</th>':'')+'</tr></thead>' +
+    '<div class="matrix-scroll"><table class="summary-table"><thead><tr><th>Szerelő</th><th>Teljesítmény bér (jelenlegi)</th>'+(showCompare?'<th>Teljesítmény bér (új, teszt)</th>':'')+'<th>Szabadság / beteg napidíj</th><th>Extra tételek</th><th>Jelenléti bónusz</th><th>Végösszeg (jelenlegi)</th>'+(showCompare?'<th>Végösszeg (új, teszt)</th><th>Különbség</th>':'')+'</tr></thead>' +
     '<tbody>'+rows+'</tbody>' +
-    '<tfoot><tr><td>Összesen</td><td></td>'+(showCompare?'<td></td>':'')+'<td></td><td></td><td class="mono">'+fmtFt(grand)+'</td>'+(showCompare?'<td class="mono">'+fmtFt(grandNew)+'</td><td class="mono">'+fmtFt(grandDiff)+'</td>':'')+'</tr></tfoot></table></div>';
+    '<tfoot><tr><td>Összesen</td><td></td>'+(showCompare?'<td></td>':'')+'<td class="mono">'+fmtFt(grandVacSick)+'</td><td></td><td></td><td class="mono">'+fmtFt(grand)+'</td>'+(showCompare?'<td class="mono">'+fmtFt(grandNew)+'</td><td class="mono">'+fmtFt(grandDiff)+'</td>':'')+'</tr></tfoot></table></div>';
 }
 function wirePayrollTab(people, trade, month){
   document.querySelectorAll("[data-extra-add]").forEach(function(btn){
