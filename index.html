@@ -159,6 +159,8 @@ var APP_CSS = [
 ".toggle::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .15s ease;}",
 ".toggle.on::after{left:23px;}",
 ".day-type-group{display:flex;gap:.5rem;}",
+".day-type-group.wrap4{flex-wrap:wrap;}",
+".day-type-group.wrap4 .day-type-btn{flex:1 1 calc(50% - .5rem);min-width:120px;}",
 ".day-type-btn{flex:1;padding:.65rem .4rem;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);font-weight:600;font-size:.82rem;cursor:pointer;color:var(--ink-muted);font-family:'Public Sans',sans-serif;}",
 ".day-type-btn.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}",
 ".addr-status-group{display:flex;gap:.5rem;flex-wrap:wrap;}",
@@ -518,10 +520,11 @@ function keritesHoursInfoHtml(entry){
 
 function calcEntryValue(entry, person){
   if (!entry) return 0;
-  if (entry.dayType === "vacation" || entry.dayType === "sick"){
+  if (isVacationDayType(entry.dayType) || entry.dayType === "sick"){
     var rk = roleKey(person.role);
     if (!rk) return 0;
-    var table = STATE.dailyPay && STATE.dailyPay[entry.dayType];
+    var payDayType = isVacationDayType(entry.dayType) ? "vacation" : entry.dayType;
+    var table = STATE.dailyPay && STATE.dailyPay[payDayType];
     return (table && table[rk]) || 0;
   }
   if (entry.dayType !== "work") return 0;
@@ -607,7 +610,7 @@ function monthPieceTotalEffective(personId, month, trade){
 function monthVacSickPayTotal(personId, month){
   var person = getPerson(personId), sum=0;
   monthEntries(personId, month).forEach(function(e){
-    if (e.dayType==="vacation" || e.dayType==="sick") sum += calcEntryValue(e, person);
+    if (isVacationDayType(e.dayType) || e.dayType==="sick") sum += calcEntryValue(e, person);
   });
   return sum;
 }
@@ -678,11 +681,14 @@ function monthExtrasTotal(personId, month){
     .reduce(function(s,x){ return s + (x.amount||0); }, 0);
 }
 var ATTENDANCE_BONUS_AMOUNT = 33250;
+var DAYTYPE_VACATION_UNPLANNED = "vacation_unplanned";
+function isVacationDayType(dt){ return dt==="vacation" || dt===DAYTYPE_VACATION_UNPLANNED; }
 function monthAttendanceBonusEligible(personId, month){
   var entries = monthEntries(personId, month);
   var vd = entries.filter(function(e){ return e.dayType==="vacation"; }).length;
+  var ud = entries.filter(function(e){ return e.dayType===DAYTYPE_VACATION_UNPLANNED; }).length;
   var sd = entries.filter(function(e){ return e.dayType==="sick"; }).length;
-  return vd <= 5 && sd === 0;
+  return vd <= 5 && sd === 0 && ud === 0;
 }
 function monthAttendanceBonus(personId, month){
   return monthAttendanceBonusEligible(personId, month) ? ATTENDANCE_BONUS_AMOUNT : 0;
@@ -775,7 +781,7 @@ function loadState(afterOk){
     sb("month_locks?select=*"),
     sb("entry_photos?select=*")
   ]).then(function(r){
-    var settings = (r[0] && r[0][0]) || { admin_pin:"1234", assembly_hourly_rate:0, kerites_utazas_hours:0, kerites_jarulekos_hours:0, kerites_job_level_pay:false, kerites_crew_adjust:true };
+    var settings = (r[0] && r[0][0]) || { admin_pin:"1234", assembly_hourly_rate:0, kerites_utazas_hours:0, kerites_jarulekos_hours:0, kerites_job_level_pay:false, kerites_crew_adjust:true, ajto_hide_daily_pay:false };
     var dailyPay = { vacation:{vezeto:0,seged:0}, sick:{vezeto:0,seged:0} };
     (r[1]||[]).forEach(function(row){ if (dailyPay[row.day_type]) dailyPay[row.day_type][row.role] = row.amount; });
 
@@ -829,7 +835,7 @@ function loadState(afterOk){
     var extras = (r[6]||[]).map(function(row){ return { id:row.id, personId:row.person_id, month:row.month, label:row.label||"", amount:row.amount||0 }; });
     var monthLocks = (r[7]||[]).map(function(row){ return { trade:row.trade, month:row.month, locked:row.locked }; });
 
-    STATE = { adminPin: settings.admin_pin, dailyPay: dailyPay, people: people, catalog: catalog, entries: entries, extras: extras, monthLocks: monthLocks, keritesJobLevelPay: !!settings.kerites_job_level_pay, keritesCrewAdjust: settings.kerites_crew_adjust!==false };
+    STATE = { adminPin: settings.admin_pin, dailyPay: dailyPay, people: people, catalog: catalog, entries: entries, extras: extras, monthLocks: monthLocks, keritesJobLevelPay: !!settings.kerites_job_level_pay, keritesCrewAdjust: settings.kerites_crew_adjust!==false, ajtoHideDailyPay: !!settings.ajto_hide_daily_pay };
     if (afterOk) afterOk();
   }).catch(function(err){
     console.error(err);
@@ -1044,7 +1050,7 @@ function renderEntry(){
   var curMonth = todayStr().slice(0,7);
   var curMonthEntries = monthEntries(person.id, curMonth);
   var curMonthWd = curMonthEntries.filter(function(e){ return e.dayType==="work"; }).length;
-  var curMonthVd = curMonthEntries.filter(function(e){ return e.dayType==="vacation"; }).length;
+  var curMonthVd = curMonthEntries.filter(function(e){ return isVacationDayType(e.dayType); }).length;
   var curMonthSd = curMonthEntries.filter(function(e){ return e.dayType==="sick"; }).length;
   var curMonthTopUp = 0;
   if (person.trade === "kerites"){
@@ -1200,9 +1206,12 @@ function renderEntry(){
     '<main><div class="card">' +
     '<div class="field" id="f-date-field"><label>Dátum</label><input type="date" id="f-date" value="'+date+'" min="'+minDateStr+'" max="'+todayStr()+'"></div>' +
     (locked ? '<p class="pill warn">Ez a hónap már le van zárva — csak admin tud módosítani.</p>' : '') +
-    '<div class="field"><label>Nap típusa</label><div class="day-type-group">' +
+    '<div class="field"><label>Nap típusa</label><div class="day-type-group'+(person.trade==="ajto"?" wrap4":"")+'">' +
     '<button type="button" class="day-type-btn" data-daytype="work">Dolgozott</button>' +
-    '<button type="button" class="day-type-btn" data-daytype="vacation">Szabadság</button>' +
+    (person.trade==="ajto" ? (
+      '<button type="button" class="day-type-btn" data-daytype="vacation">Tervezett szabadság</button>' +
+      '<button type="button" class="day-type-btn" data-daytype="'+DAYTYPE_VACATION_UNPLANNED+'">Nem tervezett szabadság</button>'
+    ) : '<button type="button" class="day-type-btn" data-daytype="vacation">Szabadság</button>') +
     '<button type="button" class="day-type-btn" data-daytype="sick">Betegállomány</button>' +
     '</div></div>' +
     '<div id="work-fields">' +
@@ -1217,10 +1226,11 @@ function renderEntry(){
     '</div>' +
     (recent.length ? '<div class="section-title"><h2>Korábbi napjaid</h2></div><div class="card">' +
       recent.map(function(e){
+        var hidePay = person.trade==="ajto" && STATE.ajtoHideDailyPay;
         var val = calcEntryValue(e, person);
-        var tag = e.dayType==="vacation" ? " · Szabadság" : (e.dayType==="sick" ? " · Betegállomány" : "");
+        var tag = e.dayType==="vacation" ? (person.trade==="ajto" ? " · Tervezett szabadság" : " · Szabadság") : (e.dayType===DAYTYPE_VACATION_UNPLANNED ? " · Nem tervezett szabadság" : (e.dayType==="sick" ? " · Betegállomány" : ""));
         return '<div class="recent-item"><span>'+fmtDateFull(e.date)+tag+'</span>' +
-          '<span><span class="mono">'+fmtFt(val)+'</span> ' +
+          '<span>'+(hidePay ? '' : '<span class="mono">'+fmtFt(val)+'</span> ')+
           '<button class="link" data-edit="'+e.date+'">szerkeszt</button></span></div>';
       }).join("") + '</div>' : '') +
     monthSummaryHtml +
@@ -1867,7 +1877,7 @@ function wireDashboardTab(){
 
 function buildOverviewTab(people, trade, month){
   var dim = daysInMonth(month), today = todayStr();
-  var worked=0, vac=0, sick=0, missing=0, anomaly=0, ajtoProblem=0;
+  var worked=0, vac=0, vacPlanned=0, vacUnplanned=0, sick=0, missing=0, anomaly=0, ajtoProblem=0;
   var jobStatuses = trade==="kerites" ? computeKeritesJobStatuses() : {};
   var openAddrCount = 0, problemAddrCount = 0;
   if (trade==="kerites"){
@@ -1910,7 +1920,8 @@ function buildOverviewTab(people, trade, month){
       var e = entryFor(p.id, dateStr);
       var mark = "", cls = "cell" + (wknd?" wknd":"");
       if (e){
-        if (e.dayType==="vacation"){ mark='<span title="Szabadság">✈</span>'; vac++; }
+        if (e.dayType==="vacation"){ mark='<span style="color:var(--info)" title="Tervezett szabadság">✈</span>'; vac++; vacPlanned++; }
+        else if (e.dayType===DAYTYPE_VACATION_UNPLANNED){ mark='<span style="color:var(--warn)" title="Nem tervezett szabadság">✈</span>'; vac++; vacUnplanned++; }
         else if (e.dayType==="sick"){ mark='<span style="color:var(--sick)" title="Betegállomány">✚</span>'; sick++; }
         else {
           var jobStatus = null;
@@ -1944,7 +1955,7 @@ function buildOverviewTab(people, trade, month){
   return '<h1 class="admin-h1">Napló mátrix</h1><p class="muted" style="margin-bottom:1.2rem">Kattints egy napra a részletekért, vagy egy szerelő nevére a havi táblázatért.</p>' +
     '<div class="stat-row">' +
     '<div class="stat-tile"><span class="n mono" style="color:var(--ok)">'+worked+'</span><span class="l">Rögzített nap</span></div>' +
-    '<div class="stat-tile"><span class="n mono" style="color:var(--info)">'+vac+'</span><span class="l">Szabadság</span></div>' +
+    '<div class="stat-tile"><span class="n mono" style="color:var(--info)">'+vac+'</span><span class="l">Szabadság</span>'+(trade==="ajto"?'<p class="muted" style="font-size:.68rem;margin-top:.2rem">'+vacPlanned+' tervezett · '+vacUnplanned+' nem tervezett</p>':'')+'</div>' +
     '<div class="stat-tile"><span class="n mono" style="color:var(--sick)">'+sick+'</span><span class="l">Betegállomány</span></div>' +
     '<div class="stat-tile"><span class="n mono" style="color:var(--warn)">'+missing+'</span><span class="l">Hiányzó nap</span></div>' +
     (trade==="kerites" ? '<div class="stat-tile"><span class="n mono" style="color:var(--flag)">'+anomaly+'</span><span class="l">Magas teljesítmény</span></div>' : '') +
@@ -1953,7 +1964,7 @@ function buildOverviewTab(people, trade, month){
     (trade==="ajto" ? '<div class="stat-tile"><span class="n mono" style="color:var(--flag)">'+ajtoProblem+'</span><span class="l">Problémás nap</span></div>' : '') +
     '</div>' +
     '<div class="matrix-scroll"><table class="matrix"><thead><tr>'+matrixHead+'</tr></thead><tbody>'+matrixRows+'</tbody></table></div>' +
-    '<p class="muted" style="margin-top:.6rem;font-size:.8rem">● rögzítve · ✈ szabadság · ✚ betegállomány · · hiányzik (hétköznap, nincs bejegyzés)'+(trade==="kerites"?' · ⚠ magas teljesítmény — ellenőrizendő · ↻ folytatni kell a címet · ✕ probléma, megakadt a szerelés · kék felső keret + "2/4" jelvény: ugyanaz a cím több napig tartott ebben a hónapban':'')+(trade==="ajto"?' · ✕ probléma merült fel, vissza kell menni':'')+'</p>';
+    '<p class="muted" style="margin-top:.6rem;font-size:.8rem">● rögzítve · ✈ szabadság · ✚ betegállomány · · hiányzik (hétköznap, nincs bejegyzés)'+(trade==="kerites"?' · ⚠ magas teljesítmény — ellenőrizendő · ↻ folytatni kell a címet · ✕ probléma, megakadt a szerelés · kék felső keret + "2/4" jelvény: ugyanaz a cím több napig tartott ebben a hónapban':'')+(trade==="ajto"?' · ✕ probléma merült fel, vissza kell menni · kék ✈ = tervezett szabadság, sárga ✈ = nem tervezett szabadság':'')+'</p>';
 }
 function wireOverviewTab(people, trade, month){
   document.querySelectorAll(".matrix td.cell").forEach(function(td){
@@ -2101,7 +2112,10 @@ function buildPersonMonthTab(person, month, locked){
       '<td><select data-pm-daytype'+(locked?" disabled":"")+'>' +
         '<option value=""'+(dt===""?" selected":"")+'>—</option>' +
         '<option value="work"'+(dt==="work"?" selected":"")+'>Dolgozott</option>' +
-        '<option value="vacation"'+(dt==="vacation"?" selected":"")+'>Szabadság</option>' +
+        (isAjto ? (
+          '<option value="vacation"'+(dt==="vacation"?" selected":"")+'>Tervezett szabadság</option>' +
+          '<option value="'+DAYTYPE_VACATION_UNPLANNED+'"'+(dt===DAYTYPE_VACATION_UNPLANNED?" selected":"")+'>Nem tervezett szabadság</option>'
+        ) : '<option value="vacation"'+(dt==="vacation"?" selected":"")+'>Szabadság</option>') +
         '<option value="sick"'+(dt==="sick"?" selected":"")+'>Betegállomány</option>' +
       '</select></td>' +
       itemCells + extraCells +
@@ -2196,7 +2210,9 @@ function buildPayrollTab(people, trade, month){
     var extras = STATE.extras.filter(function(x){ return x.personId===p.id && x.month===month; });
     var extrasTotal = extras.reduce(function(s,x){ return s+(x.amount||0); },0);
     var wd = monthEntries(p.id, month).filter(function(e){ return e.dayType==="work"; }).length;
-    var vd = monthEntries(p.id, month).filter(function(e){ return e.dayType==="vacation"; }).length;
+    var vdPlanned = monthEntries(p.id, month).filter(function(e){ return e.dayType==="vacation"; }).length;
+    var vdUnplanned = monthEntries(p.id, month).filter(function(e){ return e.dayType===DAYTYPE_VACATION_UNPLANNED; }).length;
+    var vd = vdPlanned + vdUnplanned;
     var sd = monthEntries(p.id, month).filter(function(e){ return e.dayType==="sick"; }).length;
     var topUpHours = 0;
     if (trade === "kerites"){
@@ -2210,7 +2226,7 @@ function buildPayrollTab(people, trade, month){
     grand += total; grandNew += totalNew;
     var diff = totalNew - total;
     var score = (showCompare && p.hourlyRate) ? (workPiece / p.hourlyRate) : null;
-    return '<tr><td><strong>'+escapeHtml(p.name)+'</strong><div class="muted" style="font-size:.76rem">'+wd+' munkanap · '+vd+' szabadság · '+sd+' beteg'+(topUpHours>0.001?' · '+topUpHours.toFixed(1)+' óra pótlás':'')+'</div></td>' +
+    return '<tr><td><strong>'+escapeHtml(p.name)+'</strong><div class="muted" style="font-size:.76rem">'+wd+' munkanap · '+vd+' szabadság'+(trade==="ajto"&&vd>0?' ('+vdPlanned+' tervezett · '+vdUnplanned+' nem tervezett)':'')+' · '+sd+' beteg'+(topUpHours>0.001?' · '+topUpHours.toFixed(1)+' óra pótlás':'')+'</div></td>' +
       '<td class="mono">'+fmtFt(workPiece)+'</td>' +
       (showCompare ? '<td class="mono">'+fmtFt(workPieceNew)+'</td>' : '') +
       (showCompare ? '<td class="mono">'+(score!=null?score.toFixed(1):"—")+'</td>' : '') +
@@ -2415,7 +2431,7 @@ function buildBerTrendChart(people, trade, months, selectedPersonId){
 }
 function buildAttendanceChart(people, months){
   var vacTotals = months.map(function(m){
-    return people.reduce(function(s,p){ return s + monthEntries(p.id,m).filter(function(e){ return e.dayType==="vacation"; }).length; }, 0);
+    return people.reduce(function(s,p){ return s + monthEntries(p.id,m).filter(function(e){ return isVacationDayType(e.dayType); }).length; }, 0);
   });
   var sickTotals = months.map(function(m){
     return people.reduce(function(s,p){ return s + monthEntries(p.id,m).filter(function(e){ return e.dayType==="sick"; }).length; }, 0);
@@ -2441,22 +2457,28 @@ function buildBerTrendSection(people, trade, months){
   return '<div class="matrix-scroll"><table class="summary-table"><thead><tr>'+head+'</tr></thead><tbody>'+rows+'</tbody><tfoot>'+footer+'</tfoot></table></div>';
 }
 
-function buildAttendanceSection(people, months){
+function buildAttendanceSection(people, months, trade){
+  var isAjto = trade==="ajto";
+  function vacCellHtml(vacPlanned, vacUnplanned){
+    var vac = vacPlanned + vacUnplanned;
+    return vac + (isAjto && vac>0 ? ' <span class="muted" style="font-size:.68rem">('+vacPlanned+'/'+vacUnplanned+')</span>' : '');
+  }
   var totals = {};
-  months.forEach(function(m){ totals[m] = { vac:0, sick:0 }; });
+  months.forEach(function(m){ totals[m] = { vacPlanned:0, vacUnplanned:0, sick:0 }; });
   var rows = people.map(function(p){
     var cells = months.map(function(m, i){
       var entries = monthEntries(p.id, m);
-      var vac = entries.filter(function(e){ return e.dayType==="vacation"; }).length;
+      var vacPlanned = entries.filter(function(e){ return e.dayType==="vacation"; }).length;
+      var vacUnplanned = entries.filter(function(e){ return e.dayType===DAYTYPE_VACATION_UNPLANNED; }).length;
       var sick = entries.filter(function(e){ return e.dayType==="sick"; }).length;
-      totals[m].vac += vac; totals[m].sick += sick;
-      return '<td class="mono'+(i>0?" month-sep":"")+'">'+vac+'</td><td class="mono">'+sick+'</td>';
+      totals[m].vacPlanned += vacPlanned; totals[m].vacUnplanned += vacUnplanned; totals[m].sick += sick;
+      return '<td class="mono'+(i>0?" month-sep":"")+'">'+vacCellHtml(vacPlanned, vacUnplanned)+'</td><td class="mono">'+sick+'</td>';
     }).join("");
     return '<tr><td><strong>'+escapeHtml(p.name)+'</strong></td>'+cells+'</tr>';
   }).join("");
-  var footer = '<tr><td>Összesen</td>'+months.map(function(m, i){ return '<td class="mono'+(i>0?" month-sep":"")+'"><strong>'+totals[m].vac+'</strong></td><td class="mono"><strong>'+totals[m].sick+'</strong></td>'; }).join("")+'</tr>';
+  var footer = '<tr><td>Összesen</td>'+months.map(function(m, i){ return '<td class="mono'+(i>0?" month-sep":"")+'"><strong>'+vacCellHtml(totals[m].vacPlanned, totals[m].vacUnplanned)+'</strong></td><td class="mono"><strong>'+totals[m].sick+'</strong></td>'; }).join("")+'</tr>';
   var headTop = '<th rowspan="2">Szerelő</th>'+months.map(function(m, i){ return '<th colspan="2"'+(i>0?' class="month-sep"':'')+'>'+m+'</th>'; }).join("");
-  var headBottom = months.map(function(m, i){ return '<th'+(i>0?' class="month-sep"':'')+'>Szab.</th><th>Beteg</th>'; }).join("");
+  var headBottom = months.map(function(m, i){ return '<th'+(i>0?' class="month-sep"':'')+'>Szab.'+(isAjto?' (terv./nem terv.)':'')+'</th><th>Beteg</th>'; }).join("");
   return '<div class="matrix-scroll"><table class="summary-table"><thead><tr>'+headTop+'</tr><tr>'+headBottom+'</tr></thead><tbody>'+rows+'</tbody><tfoot>'+footer+'</tfoot></table></div>';
 }
 
@@ -2642,7 +2664,7 @@ function buildReportsTab(people, trade){
 
   html += '<div class="section-title"><h2>Jelenlét / hiányzás összesítő</h2></div>';
   html += buildAttendanceChart(people, months);
-  html += buildAttendanceSection(people, months);
+  html += buildAttendanceSection(people, months, trade);
 
   if (trade==="kerites"){
     html += '<div class="section-title"><h2>Valaha problémás címek havi alakulása</h2></div>';
@@ -2842,6 +2864,11 @@ function buildSettingsTab(){
     '<div class="switch-row"><div><strong>Létszámmal korrigált teljesítményóra (kerítés)</strong>' +
     '<p class="muted" style="font-size:.78rem;margin-top:.3rem">Bekapcsolva (ez az alapértelmezett): ha egy napon 3 vagy több szerelő dolgozott ugyanazon a rendelésszámon, a teljesítményórát automatikusan a ténylegesen azonosított létszámmal osztjuk el — mindenhol, azonnal hivatalosan (a szerelő saját kijelzőjén, a magas teljesítmény jelzésnél, a bérszámításban is). Ez a kapcsoló független a fenti, munka-szintű (többnapos) kapcsolótól. Csak 2026. október 1-től számol így — a szeptemberi (és korábbi) napokat nem érinti, kikapcsolva pedig mindig a régi, 2 főre számoló logika fut.</p></div>' +
     '<div class="toggle'+(STATE.keritesCrewAdjust?" on":"")+'" id="a-crewadjust-toggle"></div></div>' +
+    '</div>' +
+    '<div class="card" style="max-width:520px;margin-top:1.2rem">' +
+    '<div class="switch-row"><div><strong>Napi megkeresett összeg elrejtése (ajtó)</strong>' +
+    '<p class="muted" style="font-size:.78rem;margin-top:.3rem">Bekapcsolva: az ajtós szerelők a saját "Korábbi napjaid" listájukban nem látják az egyes napok Ft összegét (mentés után sem) — csak a dátumot és a "szerkeszt" gombot. A havi "Kereseted eddig" összesítő ettől függetlenül látszik továbbra is. Kikapcsolva: minden a megszokott módon látszik.</p></div>' +
+    '<div class="toggle'+(STATE.ajtoHideDailyPay?" on":"")+'" id="a-ajtohidepay-toggle"></div></div>' +
     '</div>';
 }
 function wireSettingsTab(){
@@ -2890,6 +2917,15 @@ function wireSettingsTab(){
         .catch(sbFail);
     };
   }
+  var ajtoHidePayToggle = document.getElementById("a-ajtohidepay-toggle");
+  if (ajtoHidePayToggle){
+    ajtoHidePayToggle.onclick = function(){
+      STATE.ajtoHideDailyPay = !STATE.ajtoHideDailyPay;
+      sb("settings?id=eq.1", { method:"PATCH", body:{ajto_hide_daily_pay:STATE.ajtoHideDailyPay}, prefer:"return=minimal" })
+        .then(function(){ toast(STATE.ajtoHideDailyPay ? "Az ajtós szerelők mostantól nem látják a napi összeget." : "Az ajtós szerelők ismét látják a napi összeget."); render(); })
+        .catch(sbFail);
+    };
+  }
 }
 
 function openEntryModal(personId, date){
@@ -2898,10 +2934,12 @@ function openEntryModal(personId, date){
   var body;
   if (!e){
     body = '<p class="muted">Nincs rögzített bejegyzés erre a napra.</p>';
-  } else if (e.dayType==="vacation" || e.dayType==="sick"){
+  } else if (isVacationDayType(e.dayType) || e.dayType==="sick"){
     var pillHtml = e.dayType==="vacation"
-      ? '<span class="pill info">Szabadság</span>'
-      : '<span class="pill" style="background:var(--sick-bg);color:var(--sick)">Betegállomány</span>';
+      ? '<span class="pill info">'+(person.trade==="ajto"?"Tervezett szabadság":"Szabadság")+'</span>'
+      : (e.dayType===DAYTYPE_VACATION_UNPLANNED
+        ? '<span class="pill warn">Nem tervezett szabadság</span>'
+        : '<span class="pill" style="background:var(--sick-bg);color:var(--sick)">Betegállomány</span>');
     body = '<p>'+pillHtml+'</p>' +
       '<div class="recent-item"><strong>Napidíj</strong><strong class="mono">'+fmtFt(calcEntryValue(e,person))+'</strong></div>' +
       (roleKey(person.role) ? '' : '<p class="muted" style="font-size:.8rem">Nincs beállítva a szerepköre, ezért 0 Ft-tal számol — állítsd be a Szerelők fülön.</p>') +
