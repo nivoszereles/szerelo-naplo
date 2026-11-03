@@ -1137,11 +1137,14 @@ function renderEntry(){
 
   var timeFields = "";
   var addrStatusFieldHtml = "";
-  if (person.trade === "kerites"){
+  if (person.trade === "kerites" || person.trade === "ajto"){
     timeFields = '<div class="row">' +
       '<div class="field" id="f-work-start-field"><label>Munkakezdés</label><input type="time" id="f-work-start" value="'+escapeHtml(existing.workStart||"")+'"></div>' +
       '<div class="field" id="f-work-end-field"><label>Munkavég</label><input type="time" id="f-work-end" value="'+escapeHtml(existing.workEnd||"")+'"></div>' +
-      '</div>' +
+      '</div>';
+  }
+  if (person.trade === "kerites"){
+    timeFields +=
       '<div class="field" id="f-crew-size-field"><label>Hányan dolgoztak ezen a címen ma? <span style="color:var(--flag)">*</span></label>' +
       '<select id="f-crew-size">' +
       '<option value=""'+(!existing.crewSize?" selected":"")+'>— válassz —</option>' +
@@ -1159,10 +1162,11 @@ function renderEntry(){
       KERITES_PROBLEM_TYPES.map(function(t){ return '<option value="'+escapeHtml(t)+'"'+(existing.problemType===t?" selected":"")+'>'+escapeHtml(t)+'</option>'; }).join("") +
       '</select></div>' +
       (photosEnabled ? (
-        '<div class="field" id="f-photos-field" style="margin-top:.9rem;display:none"><label>Fotó a hibáról</label>' +
+        '<div class="field" id="f-photos-field" style="margin-top:.9rem;display:none"><label>Fotó a hibáról <span style="color:var(--flag)">*</span></label>' +
         '<div class="photo-grid" id="photo-grid"></div>' +
         '<input type="file" accept="image/*" id="f-photo-input" style="display:none">' +
         '<input type="file" accept="image/*" capture="environment" id="f-photo-input-camera" style="display:none">' +
+        '<p class="muted" style="font-size:.78rem;margin-top:.3rem">Legalább 1 fotó kötelező, ha probléma merült fel.</p>' +
         '</div>'
       ) : '');
   } else if (person.trade === "ajto"){
@@ -1202,7 +1206,7 @@ function renderEntry(){
     '<button type="button" class="day-type-btn" data-daytype="sick">Betegállomány</button>' +
     '</div></div>' +
     '<div id="work-fields">' +
-    '<div class="field" id="f-order-field"><label>Munka / rendelés azonosító '+(person.trade==="kerites" ? '(kötelezően kitöltendő) <span style="color:var(--flag)">*</span>' : '(opcionális)')+'</label><input type="text" id="f-order" placeholder="pl. 1060/26" value="'+escapeHtml(existing.orderRef||"")+'">'+(person.trade==="kerites" ? '<p class="muted" id="f-crew-preview" style="font-size:.78rem;margin-top:.4rem"></p>' : '')+'</div>' +
+    '<div class="field" id="f-order-field"><label>Munka / rendelés azonosító <span style="color:var(--flag)">*</span></label><input type="text" id="f-order" placeholder="pl. 1060/26" value="'+escapeHtml(existing.orderRef||"")+'">'+(person.trade==="kerites" ? '<p class="muted" id="f-crew-preview" style="font-size:.78rem;margin-top:.4rem"></p>' : '')+'</div>' +
     timeFields +
     (itemsLabel ? '<label>'+itemsLabel+'</label>' : '') + counters +
     extraFields +
@@ -1261,6 +1265,11 @@ function renderEntry(){
       if (addressStatus !== "problem"){ clearFieldError("f-comment-field"); clearFieldError("problem-type-field"); clearFieldError("f-photos-field"); clearFieldError("f-metalcovers-field"); }
     };
   });
+  var fWs = document.getElementById("f-work-start");
+  if (fWs) fWs.onchange = function(){ clearFieldError("f-work-start-field"); clearFieldError("f-work-end-field"); };
+  var fWe = document.getElementById("f-work-end");
+  if (fWe) fWe.onchange = function(){ clearFieldError("f-work-end-field"); };
+  var fOrder = document.getElementById("f-order");
   if (person.trade === "kerites"){
     function updateCrewPreview(){
       var previewEl = document.getElementById("f-crew-preview");
@@ -1270,14 +1279,11 @@ function renderEntry(){
       previewEl.textContent = keritesCrewPreviewText(orderRefVal, dateVal, person.id);
     }
     updateCrewPreview();
-    var fOrder = document.getElementById("f-order");
     if (fOrder) fOrder.oninput = function(){ clearFieldError("f-order-field"); updateCrewPreview(); };
-    var fWs = document.getElementById("f-work-start");
-    if (fWs) fWs.onchange = function(){ clearFieldError("f-work-start-field"); clearFieldError("f-work-end-field"); };
-    var fWe = document.getElementById("f-work-end");
-    if (fWe) fWe.onchange = function(){ clearFieldError("f-work-end-field"); };
     var fCrew = document.getElementById("f-crew-size");
     if (fCrew) fCrew.onchange = function(){ clearFieldError("f-crew-size-field"); };
+  } else {
+    if (fOrder) fOrder.oninput = function(){ clearFieldError("f-order-field"); };
   }
   var fPType = document.getElementById("f-problem-type");
   if (fPType) fPType.onchange = function(){ clearFieldError("problem-type-field"); syncMetalCoversFieldUi(); };
@@ -1473,6 +1479,14 @@ function renderEntry(){
     kVALIDATE_FIELDS.forEach(clearFieldError);
     if (person.trade==="ajto" && dayType==="work"){
       var errorFields = [];
+      var orderRefVal = (document.getElementById("f-order")||{}).value || "";
+      if (!orderRefVal.trim()){ setFieldError("f-order-field","Add meg a munka/rendelés azonosítót."); errorFields.push("f-order-field"); }
+      else if (!/\d/.test(orderRefVal)){ setFieldError("f-order-field","Tartalmaznia kell egy számot (pl. 1889/26)."); errorFields.push("f-order-field"); }
+      var ws = (document.getElementById("f-work-start")||{}).value;
+      var we = (document.getElementById("f-work-end")||{}).value;
+      if (!ws){ setFieldError("f-work-start-field","Add meg a munkakezdést."); errorFields.push("f-work-start-field"); }
+      if (!we){ setFieldError("f-work-end-field","Add meg a munkavéget."); errorFields.push("f-work-end-field"); }
+      if (ws && we && timeToDecimal(we) <= timeToDecimal(ws)){ setFieldError("f-work-end-field","Később kell lennie, mint a munkakezdésnek."); errorFields.push("f-work-end-field"); }
       if (!addressStatus){ setFieldError("f-addrstatus-field","Válaszd ki, hogy kész van-e, vagy probléma merült fel."); errorFields.push("f-addrstatus-field"); }
       if (addressStatus === "problem" && !document.getElementById("f-comment").value.trim()){ setFieldError("f-comment-field","Írd le, milyen probléma merült fel."); errorFields.push("f-comment-field"); }
       if (addressStatus === "problem" && !(document.getElementById("f-problem-type")||{}).value){ setFieldError("problem-type-field","Válaszd ki a hiba típusát."); errorFields.push("problem-type-field"); }
@@ -1507,6 +1521,7 @@ function renderEntry(){
       if (!addressStatus){ setFieldError("f-addrstatus-field","Válaszd ki, hogy készen van-e, folytatni kell, vagy probléma merült fel."); errorFields.push("f-addrstatus-field"); }
       if (addressStatus === "problem" && !document.getElementById("f-comment").value.trim()){ setFieldError("f-comment-field","Írd le, milyen probléma merült fel."); errorFields.push("f-comment-field"); }
       if (addressStatus === "problem" && !(document.getElementById("f-problem-type")||{}).value){ setFieldError("problem-type-field","Válaszd ki a hiba típusát."); errorFields.push("problem-type-field"); }
+      if (addressStatus === "problem" && activePhotoCount() < 1){ setFieldError("f-photos-field","Legalább 1 fotót kell csatolni a problémáról."); errorFields.push("f-photos-field"); }
       if (errorFields.length){
         toast(errorFields.length===1 ? "1 kötelező mező hiányzik — nézd át pirossal jelölve." : errorFields.length+" kötelező mező hiányzik — nézd át pirossal jelölve.");
         var firstField = document.getElementById(errorFields[0]);
@@ -1553,8 +1568,8 @@ function renderEntry(){
       assemblyHours: person.trade==="ajto" ? (parseFloat((document.getElementById("f-assembly")||{}).value)||0) : 0,
       bontasFestesOra: person.trade==="kerites" ? (parseFloat((document.getElementById("f-bontas")||{}).value)||0) : 0,
       garanciaEgyebOra: person.trade==="kerites" ? (parseFloat((document.getElementById("f-garancia")||{}).value)||0) : 0,
-      workStart: person.trade==="kerites" ? ((document.getElementById("f-work-start")||{}).value || "") : "",
-      workEnd: person.trade==="kerites" ? ((document.getElementById("f-work-end")||{}).value || "") : "",
+      workStart: (person.trade==="kerites" || person.trade==="ajto") ? ((document.getElementById("f-work-start")||{}).value || "") : "",
+      workEnd: (person.trade==="kerites" || person.trade==="ajto") ? ((document.getElementById("f-work-end")||{}).value || "") : "",
       comment: document.getElementById("f-comment").value,
       addressStatus: ((person.trade==="kerites" || person.trade==="ajto") && dayType==="work") ? addressStatus : null,
       crewSize: (person.trade==="kerites" && dayType==="work") ? (parseInt((document.getElementById("f-crew-size")||{}).value,10)||null) : null,
@@ -2869,6 +2884,7 @@ function openEntryModal(personId, date){
       (person.trade==="kerites" && e.crewSize ? '<p class="muted">Bevallott létszám: '+e.crewSize+' fő'+(keritesActualCrewSize(e) && keritesActualCrewSize(e)>e.crewSize ? ' <span style="color:var(--flag)">(ténylegesen azonosítva: '+keritesActualCrewSize(e)+' fő)</span>' : '')+'</p>' : '') +
       (overrideItem ? '<p class="pill info">'+escapeHtml(overrideItem.label)+' nap — '+overrideItem.hoursPerUnit+' óra (fix)</p>' : '') +
       '<div>'+ (rows || '<p class="muted">Nincs tétel.</p>') + '</div>' +
+      (person.trade==="ajto" && e.workStart && e.workEnd ? '<div class="recent-item"><span>Munkaidő</span><span class="mono">'+e.workStart+'–'+e.workEnd+'</span></div>' : '') +
       (person.trade==="ajto" && e.assemblyHours ? '<div class="recent-item"><span>Összerakás</span><span class="mono">'+e.assemblyHours+' óra</span></div>' : '') +
       (person.trade==="kerites" && (e.bontasFestesOra||e.garanciaEgyebOra) ? '<div class="recent-item"><span>Bontás/festés + garancia</span><span class="mono">'+((e.bontasFestesOra||0)+(e.garanciaEgyebOra||0))+' óra</span></div>' : '') +
       (person.trade==="kerites" ? keritesHoursInfoHtml(e) : '') +
