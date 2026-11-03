@@ -1146,7 +1146,7 @@ function renderEntry(){
       (photosEnabled ? (
         '<div class="field" id="f-photos-field" style="margin-top:.9rem;display:none"><label>Fotó a hibáról</label>' +
         '<div class="photo-grid" id="photo-grid"></div>' +
-        '<input type="file" accept="image/*" capture="environment" id="f-photo-input" style="display:none">' +
+        '<input type="file" accept="image/*" id="f-photo-input" style="display:none">' +
         '</div>'
       ) : '');
   } else if (person.trade === "ajto"){
@@ -1161,7 +1161,7 @@ function renderEntry(){
       (photosEnabled ? (
         '<div class="field" id="f-photos-field" style="margin-top:.9rem;display:none"><label>Fotó a hibáról <span style="color:var(--flag)">*</span></label>' +
         '<div class="photo-grid" id="photo-grid"></div>' +
-        '<input type="file" accept="image/*" capture="environment" id="f-photo-input" style="display:none">' +
+        '<input type="file" accept="image/*" id="f-photo-input" style="display:none">' +
         '<p class="muted" style="font-size:.78rem;margin-top:.3rem">Legalább 1 fotó kötelező, ha probléma merült fel.</p>' +
         '</div>'
       ) : '');
