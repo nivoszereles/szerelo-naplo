@@ -183,6 +183,11 @@ var APP_CSS = [
 ".stepper .qty{width:3rem;text-align:center;font-weight:700;font-size:1.05rem;border:1px solid var(--line);border-radius:6px;padding:.3rem 0;background:var(--surface);color:var(--ink);font-family:'JetBrains Mono',ui-monospace,monospace;}",
 ".stepper .qty::-webkit-outer-spin-button,.stepper .qty::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}",
 ".stepper .qty{-moz-appearance:textfield;}",
+".door-line-card{position:relative;border:1px solid var(--line);border-radius:12px;padding:.9rem;margin-bottom:.8rem;background:var(--surface-2);}",
+".door-line-remove{position:absolute;top:.6rem;right:.6rem;width:26px;height:26px;border-radius:50%;border:none;background:rgba(26,22,15,.72);color:#fff;font-size:1rem;line-height:1;cursor:pointer;}",
+".extras-check-grid{display:flex;flex-wrap:wrap;gap:.5rem .9rem;}",
+".extra-check{display:flex;align-items:center;gap:.4rem;font-size:.86rem;cursor:pointer;}",
+".dl-door-type.field-error-input,.dl-door-type.field-error-input+*{border-color:var(--flag)!important;}",
 "button.primary{background:var(--accent);color:var(--accent-ink);border:none;border-radius:12px;padding:.95rem 1.2rem;font-weight:700;font-size:1.02rem;cursor:pointer;width:100%;}",
 "button.primary:hover{filter:brightness(0.97);}",
 "button.primary:disabled{opacity:.55;cursor:default;}",
@@ -403,6 +408,9 @@ function groupAjtoItems(items){
   });
   return AJTO_GROUP_ORDER.filter(function(g){ return buckets[g] && buckets[g].length; })
     .map(function(g){ return { key:g, label:AJTO_GROUP_LABELS[g], items:buckets[g] }; });
+}
+function ajtoItemsByGroup(groupKey){
+  return STATE.catalog.ajto.items.filter(function(it){ return (it.group||"kiegeszito")===groupKey; });
 }
 
 function roleKey(role){
@@ -800,6 +808,7 @@ function loadState(afterOk){
         workStart: row.work_start ? row.work_start.slice(0,5) : "", workEnd: row.work_end ? row.work_end.slice(0,5) : "",
         comment: row.comment||"", submittedAt: row.submitted_at, reviewedOk: row.reviewed_ok||false,
         addressStatus: row.address_status||null, crewSize: row.crew_size||null, problemType: row.problem_type||null,
+        doorLines: row.ajto_door_lines || null,
         photos: photosByEntryId[row.id] || []
       };
     });
@@ -825,6 +834,7 @@ function dbEntryRow(e){
     address_status: e.addressStatus || null,
     crew_size: e.crewSize || null,
     problem_type: e.problemType || null,
+    ajto_door_lines: (e.trade==="ajto" && e.doorLines && e.doorLines.length) ? e.doorLines : null,
     deleted_at: null
   };
 }
@@ -1053,7 +1063,43 @@ function renderEntry(){
   }
   var itemsLabel = "Beépített tételek";
   var counters;
-  if (person.trade === "ajto"){
+  var ajtoUseDoorLines = person.trade === "ajto" && ((existing.doorLines && existing.doorLines.length>0) || Object.keys(existing.items||{}).length===0);
+  var doorLineSeq = 0;
+  var doorLines = [];
+  function doorTypeOptionsHtml(selected){
+    return '<option value="">— válassz —</option>' + ajtoItemsByGroup("ajto").map(function(it){
+      return '<option value="'+it.key+'"'+(selected===it.key?" selected":"")+'>'+escapeHtml(it.label)+'</option>';
+    }).join("");
+  }
+  function buildingTypeOptionsHtml(selected){
+    return '<option value="">— nincs —</option>' + ajtoItemsByGroup("epulet").map(function(it){
+      return '<option value="'+it.key+'"'+(selected===it.key?" selected":"")+'>'+escapeHtml(it.label)+'</option>';
+    }).join("");
+  }
+  function extrasCheckboxesHtml(extrasArr){
+    return ajtoItemsByGroup("kiegeszito").map(function(it){
+      var checked = extrasArr.indexOf(it.key) !== -1;
+      return '<label class="extra-check"><input type="checkbox" data-extra="'+it.key+'"'+(checked?" checked":"")+'> '+escapeHtml(it.label)+'</label>';
+    }).join("");
+  }
+  function doorLineCardHtml(line){
+    return '<div class="door-line-card" data-line-id="'+line._id+'">' +
+      '<button type="button" class="door-line-remove" data-remove-line="'+line._id+'" title="Ajtó törlése">×</button>' +
+      '<div class="field"><label>Cím / vevő</label><input type="text" class="dl-address" placeholder="pl. Kossuth u. 12." value="'+escapeHtml(line.address||"")+'"></div>' +
+      '<div class="field"><label>Ajtó típus <span style="color:var(--flag)">*</span></label><select class="dl-door-type">'+doorTypeOptionsHtml(line.doorType)+'</select></div>' +
+      '<div class="field"><label>Épület típus</label><select class="dl-building-type">'+buildingTypeOptionsHtml(line.buildingType)+'</select></div>' +
+      '<div class="field"><label>Kiegészítők</label><div class="extras-check-grid">'+extrasCheckboxesHtml(line.extras||[])+'</div></div>' +
+      '</div>';
+  }
+  if (ajtoUseDoorLines){
+    (existing.doorLines||[]).forEach(function(l){
+      doorLineSeq++;
+      doorLines.push({ _id: doorLineSeq, doorType: l.doorType||"", buildingType: l.buildingType||"", extras: (l.extras||[]).slice(), address: l.address||"" });
+    });
+    counters = '<div id="door-lines-list">' + doorLines.map(doorLineCardHtml).join("") + '</div>' +
+      '<button type="button" class="ghost" id="dl-add-btn" style="margin-bottom:.9rem">+ Új ajtó</button>';
+    itemsLabel = "Beépített ajtók";
+  } else if (person.trade === "ajto"){
     counters = groupAjtoItems(catalog.items).map(function(grp){
       return '<div class="item-group"><div class="item-group-title">'+escapeHtml(grp.label)+'</div>' +
         '<div class="counter-list">' + grp.items.map(counterRow).join("") + '</div></div>';
@@ -1101,6 +1147,22 @@ function renderEntry(){
         '<div class="field" id="f-photos-field" style="margin-top:.9rem;display:none"><label>Fotó a hibáról</label>' +
         '<div class="photo-grid" id="photo-grid"></div>' +
         '<input type="file" accept="image/*" capture="environment" id="f-photo-input" style="display:none">' +
+        '</div>'
+      ) : '');
+  } else if (person.trade === "ajto"){
+    addrStatusFieldHtml = '<div class="field" id="f-addrstatus-field" style="margin-top:.9rem"><label>Beépítés állapota <span style="color:var(--flag)">*</span></label><div class="addr-status-group">' +
+      '<button type="button" class="addr-status-btn" data-addrstatus="done">Kész</button>' +
+      '<button type="button" class="addr-status-btn" data-addrstatus="problem">Probléma merült fel, vissza kell menni</button>' +
+      '</div></div>' +
+      '<div class="field" id="problem-type-field" style="margin-top:.9rem;display:none"><label>Hiba típusa <span style="color:var(--flag)">*</span></label>' +
+      '<select id="f-problem-type"><option value=""'+(!existing.problemType?" selected":"")+'>— válassz —</option>' +
+      KERITES_PROBLEM_TYPES.map(function(t){ return '<option value="'+escapeHtml(t)+'"'+(existing.problemType===t?" selected":"")+'>'+escapeHtml(t)+'</option>'; }).join("") +
+      '</select></div>' +
+      (photosEnabled ? (
+        '<div class="field" id="f-photos-field" style="margin-top:.9rem;display:none"><label>Fotó a hibáról <span style="color:var(--flag)">*</span></label>' +
+        '<div class="photo-grid" id="photo-grid"></div>' +
+        '<input type="file" accept="image/*" capture="environment" id="f-photo-input" style="display:none">' +
+        '<p class="muted" style="font-size:.78rem;margin-top:.3rem">Legalább 1 fotó kötelező, ha probléma merült fel.</p>' +
         '</div>'
       ) : '');
   }
@@ -1167,7 +1229,7 @@ function renderEntry(){
     b.onclick = function(){
       addressStatus = b.getAttribute("data-addrstatus"); syncAddrStatusUi();
       clearFieldError("f-addrstatus-field");
-      if (addressStatus !== "problem"){ clearFieldError("f-comment-field"); clearFieldError("problem-type-field"); }
+      if (addressStatus !== "problem"){ clearFieldError("f-comment-field"); clearFieldError("problem-type-field"); clearFieldError("f-photos-field"); }
     };
   });
   if (person.trade === "kerites"){
@@ -1187,11 +1249,11 @@ function renderEntry(){
     if (fWe) fWe.onchange = function(){ clearFieldError("f-work-end-field"); };
     var fCrew = document.getElementById("f-crew-size");
     if (fCrew) fCrew.onchange = function(){ clearFieldError("f-crew-size-field"); };
-    var fPType = document.getElementById("f-problem-type");
-    if (fPType) fPType.onchange = function(){ clearFieldError("problem-type-field"); };
-    var fComment = document.getElementById("f-comment");
-    if (fComment) fComment.oninput = function(){ clearFieldError("f-comment-field"); };
   }
+  var fPType = document.getElementById("f-problem-type");
+  if (fPType) fPType.onchange = function(){ clearFieldError("problem-type-field"); };
+  var fComment = document.getElementById("f-comment");
+  if (fComment) fComment.oninput = function(){ clearFieldError("f-comment-field"); };
 
   var existingPhotos = (existing.photos||[]).slice();
   var removedPhotoIds = [];
@@ -1205,7 +1267,7 @@ function renderEntry(){
     var html = "";
     existingPhotos.forEach(function(p){
       if (removedPhotoIds.indexOf(String(p.id)) !== -1) return;
-      html += '<div class="photo-thumb"><img src="'+photoPublicUrl(p.path)+'"></div>';
+      html += '<div class="photo-thumb"><img src="'+photoPublicUrl(p.path)+'"><button type="button" class="photo-remove" data-existing="'+p.id+'">×</button></div>';
     });
     pendingPhotos.forEach(function(p, idx){
       html += '<div class="photo-thumb"><img src="'+p.previewUrl+'"><button type="button" class="photo-remove" data-pending="'+idx+'">×</button></div>';
@@ -1216,7 +1278,14 @@ function renderEntry(){
     grid.innerHTML = html;
     var addBtn = document.getElementById("photo-add-btn");
     if (addBtn) addBtn.onclick = function(){ document.getElementById("f-photo-input").click(); };
-    grid.querySelectorAll(".photo-remove").forEach(function(btn){
+    grid.querySelectorAll("[data-existing]").forEach(function(btn){
+      btn.onclick = function(){
+        if (!confirm("Biztosan törlöd ezt a fotót?")) return;
+        removedPhotoIds.push(btn.getAttribute("data-existing"));
+        renderPhotoGrid();
+      };
+    });
+    grid.querySelectorAll("[data-pending]").forEach(function(btn){
       btn.onclick = function(){
         pendingPhotos.splice(parseInt(btn.getAttribute("data-pending"),10), 1);
         renderPhotoGrid();
@@ -1233,7 +1302,46 @@ function renderEntry(){
       compressImageFile(file, PHOTO_MAX_DIM, PHOTO_QUALITY).then(function(blob){
         pendingPhotos.push({ blob: blob, previewUrl: URL.createObjectURL(blob) });
         renderPhotoGrid();
+        clearFieldError("f-photos-field");
       }).catch(function(){ toast("Nem sikerült feldolgozni a fotót."); });
+    };
+  }
+
+  function readDoorLinesFromDom(){
+    document.querySelectorAll(".door-line-card").forEach(function(card){
+      var id = parseInt(card.getAttribute("data-line-id"),10);
+      var line = doorLines.filter(function(l){ return l._id===id; })[0];
+      if (!line) return;
+      line.address = card.querySelector(".dl-address").value;
+      line.doorType = card.querySelector(".dl-door-type").value;
+      line.buildingType = card.querySelector(".dl-building-type").value;
+      line.extras = Array.prototype.slice.call(card.querySelectorAll("[data-extra]")).filter(function(cb){ return cb.checked; }).map(function(cb){ return cb.getAttribute("data-extra"); });
+    });
+  }
+  function wireDoorLineRemoveButtons(){
+    document.querySelectorAll("[data-remove-line]").forEach(function(btn){
+      btn.onclick = function(){
+        readDoorLinesFromDom();
+        var id = parseInt(btn.getAttribute("data-remove-line"),10);
+        doorLines = doorLines.filter(function(l){ return l._id!==id; });
+        rerenderDoorLinesList();
+      };
+    });
+  }
+  function rerenderDoorLinesList(){
+    var container = document.getElementById("door-lines-list");
+    if (!container) return;
+    container.innerHTML = doorLines.map(doorLineCardHtml).join("");
+    wireDoorLineRemoveButtons();
+  }
+  if (ajtoUseDoorLines){
+    wireDoorLineRemoveButtons();
+    var dlAddBtn = document.getElementById("dl-add-btn");
+    if (dlAddBtn) dlAddBtn.onclick = function(){
+      readDoorLinesFromDom();
+      doorLineSeq++;
+      doorLines.push({ _id: doorLineSeq, doorType:"", buildingType:"", extras:[], address:"" });
+      rerenderDoorLinesList();
     };
   }
 
@@ -1275,8 +1383,21 @@ function renderEntry(){
     var entryLocked = isLocked(person.trade, d.slice(0,7));
     if (entryLocked){ toast("Ez a hónap le van zárva."); return; }
     if (!nav.adminAuthed && d < minDateStr){ toast("Ez a nap már egy korábbi hónapban van — szólj az adminnak, ha módosítani szeretnél rajta."); return; }
-    var kVALIDATE_FIELDS = ["f-order-field","f-work-start-field","f-work-end-field","f-crew-size-field","f-addrstatus-field","f-comment-field","problem-type-field"];
+    var kVALIDATE_FIELDS = ["f-order-field","f-work-start-field","f-work-end-field","f-crew-size-field","f-addrstatus-field","f-comment-field","problem-type-field","f-photos-field"];
     kVALIDATE_FIELDS.forEach(clearFieldError);
+    if (person.trade==="ajto" && dayType==="work"){
+      var errorFields = [];
+      if (!addressStatus){ setFieldError("f-addrstatus-field","Válaszd ki, hogy kész van-e, vagy probléma merült fel."); errorFields.push("f-addrstatus-field"); }
+      if (addressStatus === "problem" && !document.getElementById("f-comment").value.trim()){ setFieldError("f-comment-field","Írd le, milyen probléma merült fel."); errorFields.push("f-comment-field"); }
+      if (addressStatus === "problem" && !(document.getElementById("f-problem-type")||{}).value){ setFieldError("problem-type-field","Válaszd ki a hiba típusát."); errorFields.push("problem-type-field"); }
+      if (addressStatus === "problem" && activePhotoCount() < 1){ setFieldError("f-photos-field","Legalább 1 fotót kell csatolni a problémáról."); errorFields.push("f-photos-field"); }
+      if (errorFields.length){
+        toast(errorFields.length===1 ? "1 kötelező mező hiányzik — nézd át pirossal jelölve." : errorFields.length+" kötelező mező hiányzik — nézd át pirossal jelölve.");
+        var firstField = document.getElementById(errorFields[0]);
+        if (firstField) firstField.scrollIntoView({ behavior:"smooth", block:"center" });
+        return;
+      }
+    }
     if (person.trade==="kerites" && dayType==="work"){
       var errorFields = [];
       var orderRefVal = (document.getElementById("f-order")||{}).value || "";
@@ -1300,15 +1421,40 @@ function renderEntry(){
       }
     }
     var items = {};
-    document.querySelectorAll(".counter").forEach(function(row){
-      var k = row.getAttribute("data-key");
-      var checkEl = row.querySelector("[data-check]");
-      var v = checkEl ? (checkEl.checked ? 1 : 0) : (parseInt(row.querySelector("[data-qty]").value,10)||0);
-      if (v>0) items[k]=v;
-    });
+    var savedDoorLines = null;
+    if (ajtoUseDoorLines && dayType==="work"){
+      readDoorLinesFromDom();
+      document.querySelectorAll(".dl-door-type").forEach(function(sel){ sel.classList.remove("field-error-input"); });
+      var missingDoorType = doorLines.filter(function(l){ return !l.doorType; });
+      if (missingDoorType.length){
+        toast("Minden felvett ajtónál válaszd ki az ajtó típust.");
+        document.querySelectorAll(".door-line-card").forEach(function(card){
+          var id = parseInt(card.getAttribute("data-line-id"),10);
+          var line = doorLines.filter(function(l){ return l._id===id; })[0];
+          if (line && !line.doorType) card.querySelector(".dl-door-type").classList.add("field-error-input");
+        });
+        var firstBadCard = document.querySelector(".dl-door-type.field-error-input");
+        if (firstBadCard) firstBadCard.scrollIntoView({ behavior:"smooth", block:"center" });
+        return;
+      }
+      doorLines.forEach(function(l){
+        items[l.doorType] = (items[l.doorType]||0) + 1;
+        if (l.buildingType) items[l.buildingType] = (items[l.buildingType]||0) + 1;
+        (l.extras||[]).forEach(function(k){ items[k] = (items[k]||0) + 1; });
+      });
+      savedDoorLines = doorLines.map(function(l){ return { doorType:l.doorType, buildingType:l.buildingType||null, extras:(l.extras||[]).slice(), address:l.address||"" }; });
+    } else {
+      document.querySelectorAll(".counter").forEach(function(row){
+        var k = row.getAttribute("data-key");
+        var checkEl = row.querySelector("[data-check]");
+        var v = checkEl ? (checkEl.checked ? 1 : 0) : (parseInt(row.querySelector("[data-qty]").value,10)||0);
+        if (v>0) items[k]=v;
+      });
+    }
     var entry = {
       personId: person.id, date: d, trade: person.trade, dayType: dayType,
       items: items,
+      doorLines: savedDoorLines,
       orderRef: (document.getElementById("f-order")||{}).value || "",
       assemblyHours: person.trade==="ajto" ? (parseFloat((document.getElementById("f-assembly")||{}).value)||0) : 0,
       bontasFestesOra: person.trade==="kerites" ? (parseFloat((document.getElementById("f-bontas")||{}).value)||0) : 0,
@@ -1316,9 +1462,9 @@ function renderEntry(){
       workStart: person.trade==="kerites" ? ((document.getElementById("f-work-start")||{}).value || "") : "",
       workEnd: person.trade==="kerites" ? ((document.getElementById("f-work-end")||{}).value || "") : "",
       comment: document.getElementById("f-comment").value,
-      addressStatus: (person.trade==="kerites" && dayType==="work") ? addressStatus : null,
+      addressStatus: ((person.trade==="kerites" || person.trade==="ajto") && dayType==="work") ? addressStatus : null,
       crewSize: (person.trade==="kerites" && dayType==="work") ? (parseInt((document.getElementById("f-crew-size")||{}).value,10)||null) : null,
-      problemType: (person.trade==="kerites" && dayType==="work" && addressStatus==="problem") ? (document.getElementById("f-problem-type")||{}).value : null,
+      problemType: ((person.trade==="kerites" || person.trade==="ajto") && dayType==="work" && addressStatus==="problem") ? (document.getElementById("f-problem-type")||{}).value : null,
       submittedAt: new Date().toISOString()
     };
     function finishSave(){ toast("Mentve! Köszi a munkát."); render(); }
@@ -2610,10 +2756,10 @@ function openEntryModal(personId, date){
       .map(function(it){ return '<div class="recent-item"><span>'+escapeHtml(it.label)+'</span><span class="mono">'+e.items[it.key]+' db</span></div>'; }).join("");
     var anomaly = isHourAnomaly(e);
     var addrStatusPill = "";
-    if (person.trade==="kerites" && e.addressStatus){
-      if (e.addressStatus==="done") addrStatusPill = '<p class="pill ok" style="margin-bottom:.6rem">✓ Cím befejezve</p>';
+    if ((person.trade==="kerites" || person.trade==="ajto") && e.addressStatus){
+      if (e.addressStatus==="done") addrStatusPill = '<p class="pill ok" style="margin-bottom:.6rem">✓ '+(person.trade==="ajto"?"Beépítés kész":"Cím befejezve")+'</p>';
       else if (e.addressStatus==="continue") addrStatusPill = '<p class="pill warn" style="margin-bottom:.6rem">↻ Folytatni kell a címet</p>';
-      else if (e.addressStatus==="problem") addrStatusPill = '<p class="pill flag" style="margin-bottom:.6rem">✕ Probléma merült fel, megakadt a szerelés'+(e.problemType?' — '+escapeHtml(e.problemType):'')+'</p>';
+      else if (e.addressStatus==="problem") addrStatusPill = '<p class="pill flag" style="margin-bottom:.6rem">✕ Probléma merült fel'+(person.trade==="ajto"?", vissza kell menni":", megakadt a szerelés")+(e.problemType?' — '+escapeHtml(e.problemType):'')+'</p>';
     }
     body = addrStatusPill +
       (anomaly && !e.reviewedOk ? '<p class="pill flag" style="margin-bottom:.6rem">⚠ Magas teljesítmény — ellenőrizd, mielőtt kifizeted!</p>' : '') +
