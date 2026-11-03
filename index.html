@@ -1147,6 +1147,7 @@ function renderEntry(){
         '<div class="field" id="f-photos-field" style="margin-top:.9rem;display:none"><label>Fotó a hibáról</label>' +
         '<div class="photo-grid" id="photo-grid"></div>' +
         '<input type="file" accept="image/*" id="f-photo-input" style="display:none">' +
+        '<input type="file" accept="image/*" capture="environment" id="f-photo-input-camera" style="display:none">' +
         '</div>'
       ) : '');
   } else if (person.trade === "ajto"){
@@ -1162,6 +1163,7 @@ function renderEntry(){
         '<div class="field" id="f-photos-field" style="margin-top:.9rem;display:none"><label>Fotó a hibáról <span style="color:var(--flag)">*</span></label>' +
         '<div class="photo-grid" id="photo-grid"></div>' +
         '<input type="file" accept="image/*" id="f-photo-input" style="display:none">' +
+        '<input type="file" accept="image/*" capture="environment" id="f-photo-input-camera" style="display:none">' +
         '<p class="muted" style="font-size:.78rem;margin-top:.3rem">Legalább 1 fotó kötelező, ha probléma merült fel.</p>' +
         '</div>'
       ) : '');
@@ -1273,11 +1275,14 @@ function renderEntry(){
       html += '<div class="photo-thumb"><img src="'+p.previewUrl+'"><button type="button" class="photo-remove" data-pending="'+idx+'">×</button></div>';
     });
     if (activePhotoCount() < MAX_ENTRY_PHOTOS){
-      html += '<button type="button" class="photo-add-btn" id="photo-add-btn">📷</button>';
+      html += '<button type="button" class="photo-add-btn" id="photo-add-btn-camera" title="Fénykép készítése">📷</button>';
+      html += '<button type="button" class="photo-add-btn" id="photo-add-btn-gallery" title="Galériából">🖼️</button>';
     }
     grid.innerHTML = html;
-    var addBtn = document.getElementById("photo-add-btn");
-    if (addBtn) addBtn.onclick = function(){ document.getElementById("f-photo-input").click(); };
+    var addBtnCamera = document.getElementById("photo-add-btn-camera");
+    if (addBtnCamera) addBtnCamera.onclick = function(){ document.getElementById("f-photo-input-camera").click(); };
+    var addBtnGallery = document.getElementById("photo-add-btn-gallery");
+    if (addBtnGallery) addBtnGallery.onclick = function(){ document.getElementById("f-photo-input").click(); };
     grid.querySelectorAll("[data-existing]").forEach(function(btn){
       btn.onclick = function(){
         if (!confirm("Biztosan törlöd ezt a fotót?")) return;
@@ -1294,8 +1299,7 @@ function renderEntry(){
   }
   if (photosEnabled){
     renderPhotoGrid();
-    var fPhotoInput = document.getElementById("f-photo-input");
-    if (fPhotoInput) fPhotoInput.onchange = function(e){
+    function onPhotoInputChange(e){
       var file = e.target.files && e.target.files[0];
       e.target.value = "";
       if (!file) return;
@@ -1304,7 +1308,11 @@ function renderEntry(){
         renderPhotoGrid();
         clearFieldError("f-photos-field");
       }).catch(function(){ toast("Nem sikerült feldolgozni a fotót."); });
-    };
+    }
+    var fPhotoInput = document.getElementById("f-photo-input");
+    if (fPhotoInput) fPhotoInput.onchange = onPhotoInputChange;
+    var fPhotoInputCamera = document.getElementById("f-photo-input-camera");
+    if (fPhotoInputCamera) fPhotoInputCamera.onchange = onPhotoInputChange;
   }
 
   function readDoorLinesFromDom(){
