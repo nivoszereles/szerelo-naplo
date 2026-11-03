@@ -449,8 +449,8 @@ function keritesOverrideItem(entry){
 }
 var KERITES_CREW_ADJUST_CUTOFF = "2026-10-01";
 var KERITES_PROBLEM_TYPES = ["Felmérési hiba", "Gyártási hiba", "Hiányzó alkatrész", "Szerelői hiba", "Ügyfél hibás előkészület", "Egyéb"];
-var AJTO_PROBLEM_TYPES = ["Felmérési hiba", "Gyártási hiba", "Hiányzó alkatrész", "Hibás méretű fém takaró", "Szerelői hiba", "Ügyfél hibás előkészület", "Egyéb"];
-var METAL_COVER_PROBLEM_TYPE = "Hibás méretű fém takaró";
+var AJTO_PROBLEM_TYPES = ["Felmérési hiba", "Gyártási hiba", "Hiányzó alkatrész", "Hibás méretű fém mobil takaró", "Szerelői hiba", "Ügyfél hibás előkészület", "Egyéb"];
+var METAL_COVER_PROBLEM_TYPE = "Hibás méretű fém mobil takaró";
 var METAL_COVER_NAMES = ["Bal oldali takaró", "Felső takaró", "Jobb oldali takaró"];
 function blankMetalCovers(){
   return [{excluded:false,a:null,b:null},{excluded:false,a:null,b:null},{excluded:false,a:null,b:null}];
@@ -1343,7 +1343,7 @@ function renderEntry(){
   }
 
   function mcIconSvg(){
-    return '<svg viewBox="0 0 60 60" width="34" height="34"><path d="M8 8 L8 44 L22 44 L22 22 L52 22 L52 8 Z" fill="none" stroke="currentColor" stroke-width="4"/></svg>';
+    return '<svg viewBox="0 0 60 60" width="34" height="34"><path d="M10 54 L10 10 L54 10" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   }
   function renderMetalCoverGrid(){
     var grid = document.getElementById("metalcover-grid");
