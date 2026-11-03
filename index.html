@@ -1792,7 +1792,12 @@ function computeDashboardStats(month){
   Object.keys(jobStatuses).forEach(function(k){
     if (jobStatuses[k].status==="continue" || jobStatuses[k].status==="problem") openProblemAddr++;
   });
-  return { missing: missing, anomaly: anomaly, openProblemAddr: openProblemAddr, crewMismatches: computeKeritesCrewMismatches(month).length };
+  var ajtoProblem = 0;
+  STATE.entries.forEach(function(e){
+    if (e.trade!=="ajto" || e.dayType!=="work" || e.date.slice(0,7)!==month) return;
+    if (e.addressStatus==="problem") ajtoProblem++;
+  });
+  return { missing: missing, anomaly: anomaly, openProblemAddr: openProblemAddr, crewMismatches: computeKeritesCrewMismatches(month).length, ajtoProblem: ajtoProblem };
 }
 function dashboardTrendHtml(cur, prev){
   if (prev <= 0) return '<p class="muted" style="font-size:.74rem;margin:.3rem 0 0">Nincs előző havi adat</p>';
@@ -1832,6 +1837,7 @@ function buildDashboardTab(){
       tileBtn("overview-kerites","var(--flag)",stats.anomaly,"Magas teljesítmény (kerítés)") +
       tileBtn("addresses","var(--flag)",stats.openProblemAddr,"Nyitott / problémás cím (kerítés)") +
       tileBtn("crewcheck","var(--warn)",stats.crewMismatches,"Létszám-eltérés (kerítés)") +
+      tileBtn("overview-ajto","var(--flag)",stats.ajtoProblem,"Problémás nap (ajtó)") +
     '</div>' +
     '<div class="section-title"><h2>Pénzügyi összkép — folyó hónap</h2></div>' +
     '<div class="stat-row">' +
@@ -1861,7 +1867,7 @@ function wireDashboardTab(){
 
 function buildOverviewTab(people, trade, month){
   var dim = daysInMonth(month), today = todayStr();
-  var worked=0, vac=0, sick=0, missing=0, anomaly=0;
+  var worked=0, vac=0, sick=0, missing=0, anomaly=0, ajtoProblem=0;
   var jobStatuses = trade==="kerites" ? computeKeritesJobStatuses() : {};
   var openAddrCount = 0, problemAddrCount = 0;
   if (trade==="kerites"){
@@ -1919,6 +1925,7 @@ function buildOverviewTab(people, trade, month){
           if (trade==="kerites" && jobStatus==="done" && e.addressStatus!=="done"){ mark='<span style="color:var(--ok)" title="Rögzítve — a cím időközben befejeződött">●</span>'; worked++; }
           else if (trade==="kerites" && e.addressStatus==="problem"){ mark='<span style="color:var(--flag)" title="Probléma merült fel, megakadt a szerelés">✕</span>'; worked++; }
           else if (trade==="kerites" && e.addressStatus==="continue"){ mark='<span style="color:var(--warn)" title="Folytatni kell a címet">↻</span>'; worked++; }
+          else if (trade==="ajto" && e.addressStatus==="problem"){ mark='<span style="color:var(--flag)" title="Probléma merült fel, vissza kell menni">✕</span>'; worked++; ajtoProblem++; }
           else if (isHourAnomaly(e) && !e.reviewedOk){ mark='<span style="color:var(--flag)" title="Magas teljesítmény — ellenőrizd!">⚠</span>'; worked++; anomaly++; }
           else { mark='<span style="color:var(--ok)" title="Rögzítve">●</span>'; worked++; }
           var mdInfo = multidayInfo[p.id] && multidayInfo[p.id][dateStr];
@@ -1943,9 +1950,10 @@ function buildOverviewTab(people, trade, month){
     (trade==="kerites" ? '<div class="stat-tile"><span class="n mono" style="color:var(--flag)">'+anomaly+'</span><span class="l">Magas teljesítmény</span></div>' : '') +
     (trade==="kerites" ? '<div class="stat-tile"><span class="n mono" style="color:var(--warn)">'+openAddrCount+'</span><span class="l">Címre vissza kell menni</span></div>' : '') +
     (trade==="kerites" ? '<div class="stat-tile"><span class="n mono" style="color:var(--flag)">'+problemAddrCount+'</span><span class="l">Problémás cím</span></div>' : '') +
+    (trade==="ajto" ? '<div class="stat-tile"><span class="n mono" style="color:var(--flag)">'+ajtoProblem+'</span><span class="l">Problémás nap</span></div>' : '') +
     '</div>' +
     '<div class="matrix-scroll"><table class="matrix"><thead><tr>'+matrixHead+'</tr></thead><tbody>'+matrixRows+'</tbody></table></div>' +
-    '<p class="muted" style="margin-top:.6rem;font-size:.8rem">● rögzítve · ✈ szabadság · ✚ betegállomány · · hiányzik (hétköznap, nincs bejegyzés)'+(trade==="kerites"?' · ⚠ magas teljesítmény — ellenőrizendő · ↻ folytatni kell a címet · ✕ probléma, megakadt a szerelés · kék felső keret + "2/4" jelvény: ugyanaz a cím több napig tartott ebben a hónapban':'')+'</p>';
+    '<p class="muted" style="margin-top:.6rem;font-size:.8rem">● rögzítve · ✈ szabadság · ✚ betegállomány · · hiányzik (hétköznap, nincs bejegyzés)'+(trade==="kerites"?' · ⚠ magas teljesítmény — ellenőrizendő · ↻ folytatni kell a címet · ✕ probléma, megakadt a szerelés · kék felső keret + "2/4" jelvény: ugyanaz a cím több napig tartott ebben a hónapban':'')+(trade==="ajto"?' · ✕ probléma merült fel, vissza kell menni':'')+'</p>';
 }
 function wireOverviewTab(people, trade, month){
   document.querySelectorAll(".matrix td.cell").forEach(function(td){
@@ -2041,14 +2049,14 @@ function buildPersonMonthTab(person, month, locked){
   var groupHeaderRow = "";
   if (isAjto){
     var groups = groupAjtoItems(STATE.catalog.ajto.items);
-    var trailingCount = 1 + 2; // Összerakás + Megjegyzés + Érték
+    var trailingCount = 5 + 2; // Összerakás + Kezdés + Vég + Állapot + Hiba típusa + Megjegyzés + Érték
     groupHeaderRow = '<tr><th colspan="2"></th>' + groups.map(function(g){
       return '<th colspan="'+g.items.length+'" style="text-align:center;background:var(--surface-2)">'+escapeHtml(g.label)+'</th>';
     }).join("") + '<th colspan="'+trailingCount+'"></th></tr>';
   }
   var itemHeadCells = items.map(function(it){ return '<th>'+itemColLabel(it)+'</th>'; }).join("");
   var extraHeadCells = isAjto
-    ? '<th>Összerakás<br><span class="muted" style="font-weight:400;font-size:.68rem">óra</span></th>'
+    ? '<th>Összerakás<br><span class="muted" style="font-weight:400;font-size:.68rem">óra</span></th><th>Kezdés</th><th>Vég</th><th>Állapot</th><th>Hiba típusa</th>'
     : '<th>Kezdés</th><th>Vég</th><th>Bontás/<br>festés</th><th>Garancia/<br>egyéb</th>';
 
   var rows = "";
@@ -2067,7 +2075,18 @@ function buildPersonMonthTab(person, month, locked){
     }).join("");
 
     var extraCells = isAjto
-      ? '<td><input type="number" min="0" step="0.1" data-pm-field="assemblyHours" value="'+((e&&e.assemblyHours)||0)+'"'+(locked?" disabled":"")+'></td>'
+      ? '<td><input type="number" min="0" step="0.1" data-pm-field="assemblyHours" value="'+((e&&e.assemblyHours)||0)+'"'+(locked?" disabled":"")+'></td>' +
+        '<td><input type="time" data-pm-field="workStart" value="'+escapeHtml((e&&e.workStart)||"")+'"'+(locked?" disabled":"")+'></td>' +
+        '<td><input type="time" data-pm-field="workEnd" value="'+escapeHtml((e&&e.workEnd)||"")+'"'+(locked?" disabled":"")+'></td>' +
+        '<td><select data-pm-field="addressStatus" class="pm-ajto-status"'+(locked?" disabled":"")+'>' +
+          '<option value=""'+(!(e&&e.addressStatus)?" selected":"")+'>—</option>' +
+          '<option value="done"'+(e&&e.addressStatus==="done"?" selected":"")+'>Kész</option>' +
+          '<option value="problem"'+(e&&e.addressStatus==="problem"?" selected":"")+'>Probléma</option>' +
+        '</select></td>' +
+        '<td><select data-pm-field="problemType"'+(locked||!(e&&e.addressStatus==="problem")?" disabled":"")+'>' +
+          '<option value="">— válassz —</option>' +
+          AJTO_PROBLEM_TYPES.map(function(t){ return '<option value="'+escapeHtml(t)+'"'+(e&&e.problemType===t?" selected":"")+'>'+escapeHtml(t)+'</option>'; }).join("") +
+        '</select></td>'
       : '<td><input type="time" data-pm-field="workStart" value="'+escapeHtml((e&&e.workStart)||"")+'"'+(locked?" disabled":"")+'></td>' +
         '<td><input type="time" data-pm-field="workEnd" value="'+escapeHtml((e&&e.workEnd)||"")+'"'+(locked?" disabled":"")+'></td>' +
         '<td><input type="number" min="0" step="0.1" data-pm-field="bontasFestesOra" value="'+((e&&e.bontasFestesOra)||0)+'"'+(locked?" disabled":"")+'></td>' +
@@ -2103,6 +2122,12 @@ function buildPersonMonthTab(person, month, locked){
 function wirePersonMonthTab(person, month, locked){
   document.getElementById("pm-back").onclick = function(){ nav.adminTab = "overview"; render(); };
   if (locked){ wireNav(); return; }
+  document.querySelectorAll(".pm-ajto-status").forEach(function(sel){
+    sel.onchange = function(){
+      var pTypeSel = sel.closest("tr").querySelector('[data-pm-field="problemType"]');
+      if (pTypeSel) pTypeSel.disabled = sel.value !== "problem";
+    };
+  });
   document.getElementById("pm-save").onclick = function(){
     var trade = person.trade;
     var toSave = [];
@@ -2121,7 +2146,7 @@ function wirePersonMonthTab(person, month, locked){
       });
       var hasItems = Object.keys(items).length > 0;
       var hasHours = trade==="ajto"
-        ? (parseFloat(fields.assemblyHours)||0) > 0
+        ? ((parseFloat(fields.assemblyHours)||0) > 0 || !!fields.workStart || !!fields.workEnd)
         : ((parseFloat(fields.bontasFestesOra)||0) > 0 || (parseFloat(fields.garanciaEgyebOra)||0) > 0 || !!fields.workStart || !!fields.workEnd);
       var hasComment = fields.comment && fields.comment.trim() !== "";
       var existing = entryFor(person.id, dateStr);
@@ -2136,12 +2161,14 @@ function wirePersonMonthTab(person, month, locked){
         assemblyHours: trade==="ajto" ? (parseFloat(fields.assemblyHours)||0) : 0,
         bontasFestesOra: trade==="kerites" ? (parseFloat(fields.bontasFestesOra)||0) : 0,
         garanciaEgyebOra: trade==="kerites" ? (parseFloat(fields.garanciaEgyebOra)||0) : 0,
-        workStart: trade==="kerites" ? (fields.workStart||"") : "",
-        workEnd: trade==="kerites" ? (fields.workEnd||"") : "",
+        workStart: (trade==="kerites" || trade==="ajto") ? (fields.workStart||"") : "",
+        workEnd: (trade==="kerites" || trade==="ajto") ? (fields.workEnd||"") : "",
         comment: fields.comment || "",
-        addressStatus: existing ? (existing.addressStatus||null) : null,
+        addressStatus: trade==="ajto" ? (fields.addressStatus||null) : (existing ? (existing.addressStatus||null) : null),
         crewSize: existing ? (existing.crewSize||null) : null,
-        problemType: existing ? (existing.problemType||null) : null,
+        problemType: trade==="ajto" ? (fields.addressStatus==="problem" ? (fields.problemType||null) : null) : (existing ? (existing.problemType||null) : null),
+        doorLines: existing ? (existing.doorLines||null) : null,
+        metalCoverSizes: existing ? (existing.metalCoverSizes||null) : null,
         submittedAt: new Date().toISOString()
       };
       toSave.push(entry);
@@ -2536,6 +2563,23 @@ function buildProblemTypeChart(months){
   if (unspecified > 0){ labels.push("Nincs megadva"); values.push(unspecified); }
   return buildBarChart(labels, [{ label:"Címek száma", values:values, colorVar:"--flag" }]);
 }
+function buildAjtoProblemTypeChart(months){
+  var monthSet = {};
+  months.forEach(function(m){ monthSet[m] = true; });
+  var counts = {};
+  AJTO_PROBLEM_TYPES.forEach(function(t){ counts[t] = 0; });
+  var unspecified = 0;
+  STATE.entries.forEach(function(e){
+    if (e.trade!=="ajto" || e.dayType!=="work" || e.addressStatus!=="problem") return;
+    if (!monthSet[e.date.slice(0,7)]) return;
+    var t = (e.problemType && AJTO_PROBLEM_TYPES.indexOf(e.problemType)>=0) ? e.problemType : "Nincs megadva";
+    if (t==="Nincs megadva") unspecified++; else counts[t]++;
+  });
+  var labels = AJTO_PROBLEM_TYPES.slice();
+  var values = labels.map(function(t){ return counts[t]; });
+  if (unspecified > 0){ labels.push("Nincs megadva"); values.push(unspecified); }
+  return buildBarChart(labels, [{ label:"Napok száma", values:values, colorVar:"--flag" }]);
+}
 
 function computeKeritesJobLifecycles(){
   var jobs = {};
@@ -2613,6 +2657,9 @@ function buildReportsTab(people, trade){
       '<select id="rp-year">' + [year+1, year, year-1, year-2].map(function(y){ return '<option value="'+y+'"'+(y===year?" selected":"")+'>'+y+'</option>'; }).join("") +
       '</select></div></div>';
     html += buildProblemJobsSection(year);
+  } else if (trade==="ajto"){
+    html += '<div class="section-title"><h2>Hibatípusok szerinti megoszlás</h2></div>';
+    html += buildAjtoProblemTypeChart(months);
   }
   return html;
 }
