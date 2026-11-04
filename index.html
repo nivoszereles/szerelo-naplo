@@ -454,6 +454,7 @@ var KERITES_PROBLEM_TYPES = ["Felmérési hiba", "Gyártási hiba", "Hiányzó a
 var AJTO_PROBLEM_TYPES = ["Felmérési hiba", "Gyártási hiba", "Hiányzó alkatrész", "Hibás méretű fém mobil takaró", "Szerelői hiba", "Ügyfél hibás előkészület", "Egyéb"];
 var METAL_COVER_PROBLEM_TYPE = "Hibás méretű fém mobil takaró";
 var METAL_COVER_NAMES = ["Bal oldali takaró", "Felső takaró", "Jobb oldali takaró"];
+var AJTO_TEAM_COLORS = ["Kék", "Piros", "Zöld", "Fekete", "Narancs"];
 function blankMetalCovers(){
   return [{excluded:false,a:null,b:null},{excluded:false,a:null,b:null},{excluded:false,a:null,b:null}];
 }
@@ -829,6 +830,7 @@ function loadState(afterOk){
         addressStatus: row.address_status||null, crewSize: row.crew_size||null, problemType: row.problem_type||null,
         doorLines: row.ajto_door_lines || null,
         metalCoverSizes: row.ajto_metal_covers || null,
+        teamColor: row.ajto_team_color || null,
         photos: photosByEntryId[row.id] || []
       };
     });
@@ -856,6 +858,7 @@ function dbEntryRow(e){
     problem_type: e.problemType || null,
     ajto_door_lines: (e.trade==="ajto" && e.doorLines && e.doorLines.length) ? e.doorLines : null,
     ajto_metal_covers: (e.trade==="ajto" && e.metalCoverSizes && e.metalCoverSizes.length) ? e.metalCoverSizes : null,
+    ajto_team_color: (e.trade==="ajto" && e.teamColor) ? e.teamColor : null,
     deleted_at: null
   };
 }
@@ -1042,7 +1045,7 @@ function renderEntry(){
   var person = getPerson(nav.personId);
   if (!person){ nav.view="landing"; return render(); }
   var date = nav.editDate || todayStr();
-  var existing = entryFor(person.id, date) || { items:{}, comment:"", dayType:"work", orderRef:"", assemblyHours:0, bontasFestesOra:0, garanciaEgyebOra:0, workStart:"", workEnd:"", crewSize:null, problemType:null, photos:[], metalCoverSizes:null };
+  var existing = entryFor(person.id, date) || { items:{}, comment:"", dayType:"work", orderRef:"", assemblyHours:0, bontasFestesOra:0, garanciaEgyebOra:0, workStart:"", workEnd:"", crewSize:null, problemType:null, photos:[], metalCoverSizes:null, teamColor:null };
   var photosEnabled = true;
   var minDateStr = minEditableDateStr(person.trade);
   var locked = isLocked(person.trade, date.slice(0,7));
@@ -1144,10 +1147,16 @@ function renderEntry(){
   var timeFields = "";
   var addrStatusFieldHtml = "";
   if (person.trade === "kerites" || person.trade === "ajto"){
-    timeFields = '<div class="row">' +
+    timeFields += '<div class="row">' +
       '<div class="field" id="f-work-start-field"><label>Munkakezdés</label><input type="time" id="f-work-start" value="'+escapeHtml(existing.workStart||"")+'"></div>' +
       '<div class="field" id="f-work-end-field"><label>Munkavég</label><input type="time" id="f-work-end" value="'+escapeHtml(existing.workEnd||"")+'"></div>' +
       '</div>';
+  }
+  if (person.trade === "ajto"){
+    timeFields += '<div class="field" id="f-teamcolor-field"><label>Csapatszín <span style="color:var(--flag)">*</span></label><select id="f-teamcolor">' +
+      '<option value=""'+(!existing.teamColor?" selected":"")+'>— válassz —</option>' +
+      AJTO_TEAM_COLORS.map(function(c){ return '<option value="'+escapeHtml(c)+'"'+(existing.teamColor===c?" selected":"")+'>'+escapeHtml(c)+'</option>'; }).join("") +
+      '</select></div>';
   }
   if (person.trade === "kerites"){
     timeFields +=
@@ -1279,6 +1288,8 @@ function renderEntry(){
   if (fWs) fWs.onchange = function(){ clearFieldError("f-work-start-field"); clearFieldError("f-work-end-field"); };
   var fWe = document.getElementById("f-work-end");
   if (fWe) fWe.onchange = function(){ clearFieldError("f-work-end-field"); };
+  var fTeamColor = document.getElementById("f-teamcolor");
+  if (fTeamColor) fTeamColor.onchange = function(){ clearFieldError("f-teamcolor-field"); };
   var fOrder = document.getElementById("f-order");
   if (person.trade === "kerites"){
     function updateCrewPreview(){
@@ -1485,10 +1496,12 @@ function renderEntry(){
     var entryLocked = isLocked(person.trade, d.slice(0,7));
     if (entryLocked){ toast("Ez a hónap le van zárva."); return; }
     if (!nav.adminAuthed && d < minDateStr){ toast("Ez a nap már egy korábbi hónapban van — szólj az adminnak, ha módosítani szeretnél rajta."); return; }
-    var kVALIDATE_FIELDS = ["f-order-field","f-work-start-field","f-work-end-field","f-crew-size-field","f-addrstatus-field","f-comment-field","problem-type-field","f-photos-field","f-metalcovers-field"];
+    var kVALIDATE_FIELDS = ["f-order-field","f-work-start-field","f-work-end-field","f-crew-size-field","f-addrstatus-field","f-comment-field","problem-type-field","f-photos-field","f-metalcovers-field","f-teamcolor-field"];
     kVALIDATE_FIELDS.forEach(clearFieldError);
     if (person.trade==="ajto" && dayType==="work"){
       var errorFields = [];
+      var teamColorVal = (document.getElementById("f-teamcolor")||{}).value || "";
+      if (!teamColorVal){ setFieldError("f-teamcolor-field","Válaszd ki a csapatszínt."); errorFields.push("f-teamcolor-field"); }
       var orderRefVal = (document.getElementById("f-order")||{}).value || "";
       if (!orderRefVal.trim()){ setFieldError("f-order-field","Add meg a munka/rendelés azonosítót."); errorFields.push("f-order-field"); }
       else if (!/\d/.test(orderRefVal)){ setFieldError("f-order-field","Tartalmaznia kell egy számot (pl. 1889/26)."); errorFields.push("f-order-field"); }
@@ -1585,6 +1598,7 @@ function renderEntry(){
       crewSize: (person.trade==="kerites" && dayType==="work") ? (parseInt((document.getElementById("f-crew-size")||{}).value,10)||null) : null,
       problemType: ((person.trade==="kerites" || person.trade==="ajto") && dayType==="work" && addressStatus==="problem") ? (document.getElementById("f-problem-type")||{}).value : null,
       metalCoverSizes: (person.trade==="ajto" && dayType==="work" && addressStatus==="problem" && (document.getElementById("f-problem-type")||{}).value===METAL_COVER_PROBLEM_TYPE) ? metalCovers.map(function(c){ return c.excluded ? {excluded:true,a:null,b:null} : {excluded:false,a:c.a,b:c.b}; }) : null,
+      teamColor: (person.trade==="ajto" && dayType==="work") ? ((document.getElementById("f-teamcolor")||{}).value || null) : null,
       submittedAt: new Date().toISOString()
     };
     function finishSave(){ toast("Mentve! Köszi a munkát."); render(); }
@@ -2060,14 +2074,14 @@ function buildPersonMonthTab(person, month, locked){
   var groupHeaderRow = "";
   if (isAjto){
     var groups = groupAjtoItems(STATE.catalog.ajto.items);
-    var trailingCount = 5 + 2; // Összerakás + Kezdés + Vég + Állapot + Hiba típusa + Megjegyzés + Érték
+    var trailingCount = 6 + 2; // Összerakás + Kezdés + Vég + Állapot + Hiba típusa + Csapatszín + Megjegyzés + Érték
     groupHeaderRow = '<tr><th colspan="2"></th>' + groups.map(function(g){
       return '<th colspan="'+g.items.length+'" style="text-align:center;background:var(--surface-2)">'+escapeHtml(g.label)+'</th>';
     }).join("") + '<th colspan="'+trailingCount+'"></th></tr>';
   }
   var itemHeadCells = items.map(function(it){ return '<th>'+itemColLabel(it)+'</th>'; }).join("");
   var extraHeadCells = isAjto
-    ? '<th>Összerakás<br><span class="muted" style="font-weight:400;font-size:.68rem">óra</span></th><th>Kezdés</th><th>Vég</th><th>Állapot</th><th>Hiba típusa</th>'
+    ? '<th>Összerakás<br><span class="muted" style="font-weight:400;font-size:.68rem">óra</span></th><th>Kezdés</th><th>Vég</th><th>Állapot</th><th>Hiba típusa</th><th>Csapatszín</th>'
     : '<th>Kezdés</th><th>Vég</th><th>Bontás/<br>festés</th><th>Garancia/<br>egyéb</th>';
 
   var rows = "";
@@ -2097,6 +2111,10 @@ function buildPersonMonthTab(person, month, locked){
         '<td><select data-pm-field="problemType"'+(locked||!(e&&e.addressStatus==="problem")?" disabled":"")+'>' +
           '<option value="">— válassz —</option>' +
           AJTO_PROBLEM_TYPES.map(function(t){ return '<option value="'+escapeHtml(t)+'"'+(e&&e.problemType===t?" selected":"")+'>'+escapeHtml(t)+'</option>'; }).join("") +
+        '</select></td>' +
+        '<td><select data-pm-field="teamColor"'+(locked?" disabled":"")+'>' +
+          '<option value="">—</option>' +
+          AJTO_TEAM_COLORS.map(function(c){ return '<option value="'+escapeHtml(c)+'"'+(e&&e.teamColor===c?" selected":"")+'>'+escapeHtml(c)+'</option>'; }).join("") +
         '</select></td>'
       : '<td><input type="time" data-pm-field="workStart" value="'+escapeHtml((e&&e.workStart)||"")+'"'+(locked?" disabled":"")+'></td>' +
         '<td><input type="time" data-pm-field="workEnd" value="'+escapeHtml((e&&e.workEnd)||"")+'"'+(locked?" disabled":"")+'></td>' +
@@ -2160,7 +2178,7 @@ function wirePersonMonthTab(person, month, locked){
       });
       var hasItems = Object.keys(items).length > 0;
       var hasHours = trade==="ajto"
-        ? ((parseFloat(fields.assemblyHours)||0) > 0 || !!fields.workStart || !!fields.workEnd)
+        ? ((parseFloat(fields.assemblyHours)||0) > 0 || !!fields.workStart || !!fields.workEnd || !!fields.teamColor)
         : ((parseFloat(fields.bontasFestesOra)||0) > 0 || (parseFloat(fields.garanciaEgyebOra)||0) > 0 || !!fields.workStart || !!fields.workEnd);
       var hasComment = fields.comment && fields.comment.trim() !== "";
       var existing = entryFor(person.id, dateStr);
@@ -2183,6 +2201,7 @@ function wirePersonMonthTab(person, month, locked){
         problemType: trade==="ajto" ? (fields.addressStatus==="problem" ? (fields.problemType||null) : null) : (existing ? (existing.problemType||null) : null),
         doorLines: existing ? (existing.doorLines||null) : null,
         metalCoverSizes: existing ? (existing.metalCoverSizes||null) : null,
+        teamColor: trade==="ajto" ? (fields.teamColor||null) : null,
         submittedAt: new Date().toISOString()
       };
       toSave.push(entry);
@@ -2970,6 +2989,7 @@ function openEntryModal(personId, date){
       (overrideItem ? '<p class="pill info">'+escapeHtml(overrideItem.label)+' nap — '+overrideItem.hoursPerUnit+' óra (fix)</p>' : '') +
       '<div>'+ (rows || '<p class="muted">Nincs tétel.</p>') + '</div>' +
       (person.trade==="ajto" && e.workStart && e.workEnd ? '<div class="recent-item"><span>Munkaidő</span><span class="mono">'+e.workStart+'–'+e.workEnd+'</span></div>' : '') +
+      (person.trade==="ajto" && e.teamColor ? '<div class="recent-item"><span>Csapatszín</span><span class="mono">'+escapeHtml(e.teamColor)+'</span></div>' : '') +
       (person.trade==="ajto" && e.assemblyHours ? '<div class="recent-item"><span>Összerakás</span><span class="mono">'+e.assemblyHours+' óra</span></div>' : '') +
       (person.trade==="kerites" && (e.bontasFestesOra||e.garanciaEgyebOra) ? '<div class="recent-item"><span>Bontás/festés + garancia</span><span class="mono">'+((e.bontasFestesOra||0)+(e.garanciaEgyebOra||0))+' óra</span></div>' : '') +
       (person.trade==="kerites" ? keritesHoursInfoHtml(e) : '') +
