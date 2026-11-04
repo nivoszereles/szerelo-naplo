@@ -33,6 +33,7 @@
   "catalog": {
     "ajto": {
       "overtimeRates": { "vezeto": 2700, "seged": 2100 },
+      "repairRates": { "vezeto": 2700, "seged": 2100 },
       "items": [
         { "key": "std_teli", "label": "Standard teli", "group": "ajto" },
         { "key": "std_uveges", "label": "Standard üveges", "group": "ajto" },
@@ -463,6 +464,13 @@ function ajtoOvertimeRate(person){
 function ajtoOvertimePay(entry, person){
   return ajtoOvertimeHours(entry) * ajtoOvertimeRate(person);
 }
+function ajtoRepairRate(person){
+  var rk = roleKey(person.role);
+  return rk ? (STATE.catalog.ajto.repairRates[rk]||0) : 0;
+}
+function ajtoRepairPay(entry, person){
+  return (workedHoursOf(entry)||0) * ajtoRepairRate(person);
+}
 function keritesOverrideItem(entry){
   var kitems = STATE.catalog.kerites.items;
   for (var i=0;i<kitems.length;i++){
@@ -555,6 +563,7 @@ function calcEntryValue(entry, person){
   }
   if (entry.dayType !== "work") return 0;
   if (person.trade === "ajto") {
+    if (entry.repairDay) return ajtoRepairPay(entry, person);
     var items = STATE.catalog.ajto.items, itemsTotal = 0, anyQty = false;
     for (var i=0;i<items.length;i++){
       var q = (entry.items && entry.items[items[i].key]) || 0;
@@ -807,7 +816,7 @@ function loadState(afterOk){
     sb("month_locks?select=*"),
     sb("entry_photos?select=*")
   ]).then(function(r){
-    var settings = (r[0] && r[0][0]) || { admin_pin:"1234", overtime_rate_vezeto:2700, overtime_rate_seged:2100, kerites_utazas_hours:0, kerites_jarulekos_hours:0, kerites_job_level_pay:false, kerites_crew_adjust:true, ajto_hide_daily_pay:false };
+    var settings = (r[0] && r[0][0]) || { admin_pin:"1234", overtime_rate_vezeto:2700, overtime_rate_seged:2100, repair_rate_vezeto:2700, repair_rate_seged:2100, kerites_utazas_hours:0, kerites_jarulekos_hours:0, kerites_job_level_pay:false, kerites_crew_adjust:true, ajto_hide_daily_pay:false };
     var dailyPay = { vacation:{vezeto:0,seged:0}, sick:{vezeto:0,seged:0} };
     (r[1]||[]).forEach(function(row){ if (dailyPay[row.day_type]) dailyPay[row.day_type][row.role] = row.amount; });
 
@@ -834,7 +843,7 @@ function loadState(afterOk){
       }
     });
     var catalog = {
-      ajto: { overtimeRates: { vezeto: settings.overtime_rate_vezeto||0, seged: settings.overtime_rate_seged||0 }, items: ajtoItems },
+      ajto: { overtimeRates: { vezeto: settings.overtime_rate_vezeto||0, seged: settings.overtime_rate_seged||0 }, repairRates: { vezeto: settings.repair_rate_vezeto||0, seged: settings.repair_rate_seged||0 }, items: ajtoItems },
       kerites: { fixedDailyHours: { utazas: settings.kerites_utazas_hours||0, jarulekos: settings.kerites_jarulekos_hours||0 }, items: keritesItems }
     };
 
@@ -848,7 +857,7 @@ function loadState(afterOk){
       return {
         id: row.id,
         personId: row.person_id, date: row.date, trade: row.trade, dayType: row.day_type,
-        items: items, orderRef: row.order_ref||"", assemblyHours: row.assembly_hours||0,
+        items: items, orderRef: row.order_ref||"", assemblyHours: row.assembly_hours||0, repairDay: row.repair_day||false,
         bontasFestesOra: row.bontas_festes_ora||0, garanciaEgyebOra: row.garancia_egyeb_ora||0,
         workStart: row.work_start ? row.work_start.slice(0,5) : "", workEnd: row.work_end ? row.work_end.slice(0,5) : "",
         comment: row.comment||"", submittedAt: row.submitted_at, reviewedOk: row.reviewed_ok||false,
@@ -873,7 +882,7 @@ function loadState(afterOk){
 function dbEntryRow(e){
   return {
     person_id: e.personId, date: e.date, trade: e.trade, day_type: e.dayType,
-    order_ref: e.orderRef||"", assembly_hours: e.assemblyHours||0,
+    order_ref: e.orderRef||"", assembly_hours: e.assemblyHours||0, repair_day: !!e.repairDay,
     bontas_festes_ora: e.bontasFestesOra||0, garancia_egyeb_ora: e.garanciaEgyebOra||0,
     work_start: e.workStart || null, work_end: e.workEnd || null,
     comment: e.comment||"", reviewed_ok: !!e.reviewedOk,
@@ -1070,7 +1079,7 @@ function renderEntry(){
   var person = getPerson(nav.personId);
   if (!person){ nav.view="landing"; return render(); }
   var date = nav.editDate || todayStr();
-  var existing = entryFor(person.id, date) || { items:{}, comment:"", dayType:"work", orderRef:"", assemblyHours:0, bontasFestesOra:0, garanciaEgyebOra:0, workStart:"", workEnd:"", crewSize:null, problemType:null, photos:[], metalCoverSizes:null, teamColor:null };
+  var existing = entryFor(person.id, date) || { items:{}, comment:"", dayType:"work", orderRef:"", assemblyHours:0, repairDay:false, bontasFestesOra:0, garanciaEgyebOra:0, workStart:"", workEnd:"", crewSize:null, problemType:null, photos:[], metalCoverSizes:null, teamColor:null };
   var photosEnabled = true;
   var minDateStr = minEditableDateStr(person.trade);
   var locked = isLocked(person.trade, date.slice(0,7));
@@ -1226,8 +1235,9 @@ function renderEntry(){
       '<div class="field" id="f-work-end-field"><label>Munkavég</label><input type="time" id="f-work-end" value="'+escapeHtml(existing.workEnd||"")+'"></div>' +
       '</div>';
   }
+  var teamColorFieldHtml = "";
   if (person.trade === "ajto"){
-    timeFields += '<div class="field" id="f-teamcolor-field"><label>Csapatszín <span style="color:var(--flag)">*</span></label><select id="f-teamcolor">' +
+    teamColorFieldHtml = '<div class="field" id="f-teamcolor-field"><label>Csapatszín <span style="color:var(--flag)">*</span></label><select id="f-teamcolor">' +
       '<option value=""'+(!existing.teamColor?" selected":"")+'>— válassz —</option>' +
       AJTO_TEAM_COLORS.map(function(c){ return '<option value="'+escapeHtml(c)+'"'+(existing.teamColor===c?" selected":"")+'>'+escapeHtml(c)+'</option>'; }).join("") +
       '</select></div>';
@@ -1298,13 +1308,19 @@ function renderEntry(){
     '<button type="button" class="day-type-btn" data-daytype="sick">Betegállomány</button>' +
     '</div></div>' +
     '<div id="work-fields">' +
+    (person.trade==="ajto" ? (
+      '<div class="field" id="f-repairday-field"><label style="display:flex;align-items:center;gap:.5rem;text-transform:none;font-weight:600;"><input type="checkbox" id="f-repairday" style="width:1.4rem;height:1.4rem"'+(existing.repairDay?" checked":"")+'> EGÉSZ NAPOS JAVÍTÁS</label></div>'
+    ) : '') +
+    timeFields +
+    '<div id="ajto-install-fields">' +
     (!(person.trade==="ajto" && ajtoUseDoorLines) ? (
       '<div class="field" id="f-order-field"><label>Munka / rendelés azonosító <span style="color:var(--flag)">*</span></label><input type="text" id="f-order" placeholder="pl. 1060/26" value="'+escapeHtml(existing.orderRef||"")+'">'+(person.trade==="kerites" ? '<p class="muted" id="f-crew-preview" style="font-size:.78rem;margin-top:.4rem"></p>' : '')+'</div>'
     ) : '') +
-    timeFields +
+    teamColorFieldHtml +
     (itemsLabel ? '<label>'+itemsLabel+'</label>' : '') + counters +
     extraFields +
     addrStatusFieldHtml +
+    '</div>' +
     '</div>' +
     '<div class="field" id="f-comment-field" style="margin-top:.9rem"><label>Megjegyzés</label><textarea id="f-comment" placeholder="Bármi, amit jelezni szeretnél...">'+escapeHtml(existing.comment||"")+'</textarea></div>' +
     '<button class="primary" id="f-save"'+(locked?" disabled":"")+'>Mentés</button>' +
@@ -1332,6 +1348,12 @@ function renderEntry(){
     });
     document.getElementById("work-fields").style.display = dayType==="work" ? "" : "none";
   }
+  function syncRepairDayUi(){
+    var wrap = document.getElementById("ajto-install-fields");
+    if (!wrap) return;
+    var cb = document.getElementById("f-repairday");
+    wrap.style.display = (cb && cb.checked) ? "none" : "";
+  }
   function syncMetalCoversFieldUi(){
     var mcf = document.getElementById("f-metalcovers-field");
     if (!mcf) return;
@@ -1350,6 +1372,9 @@ function renderEntry(){
   }
   syncDayTypeUi();
   syncAddrStatusUi();
+  syncRepairDayUi();
+  var fRepairDay = document.getElementById("f-repairday");
+  if (fRepairDay) fRepairDay.onchange = syncRepairDayUi;
   document.querySelectorAll(".day-type-btn").forEach(function(b){
     b.onclick = function(){ dayType = b.getAttribute("data-daytype"); syncDayTypeUi(); };
   });
@@ -1693,16 +1718,19 @@ function renderEntry(){
     if (!nav.adminAuthed && d < minDateStr){ toast("Ez a nap már egy korábbi hónapban van — szólj az adminnak, ha módosítani szeretnél rajta."); return; }
     var kVALIDATE_FIELDS = ["f-order-field","f-work-start-field","f-work-end-field","f-crew-size-field","f-addrstatus-field","f-comment-field","problem-type-field","f-photos-field","f-metalcovers-field","f-teamcolor-field"];
     kVALIDATE_FIELDS.forEach(clearFieldError);
+    var repairDayVal = person.trade==="ajto" && !!(document.getElementById("f-repairday")||{}).checked;
     if (person.trade==="ajto" && dayType==="work"){
       var errorFields = [];
-      var teamColorVal = (document.getElementById("f-teamcolor")||{}).value || "";
-      if (!teamColorVal){ setFieldError("f-teamcolor-field","Válaszd ki a csapatszínt."); errorFields.push("f-teamcolor-field"); }
+      if (!repairDayVal){
+        var teamColorVal = (document.getElementById("f-teamcolor")||{}).value || "";
+        if (!teamColorVal){ setFieldError("f-teamcolor-field","Válaszd ki a csapatszínt."); errorFields.push("f-teamcolor-field"); }
+      }
       var ws = (document.getElementById("f-work-start")||{}).value;
       var we = (document.getElementById("f-work-end")||{}).value;
       if (!ws){ setFieldError("f-work-start-field","Add meg a munkakezdést."); errorFields.push("f-work-start-field"); }
       if (!we){ setFieldError("f-work-end-field","Add meg a munkavéget."); errorFields.push("f-work-end-field"); }
       if (ws && we && timeToDecimal(we) <= timeToDecimal(ws)){ setFieldError("f-work-end-field","Később kell lennie, mint a munkakezdésnek."); errorFields.push("f-work-end-field"); }
-      if (!ajtoUseDoorLines){
+      if (!repairDayVal && !ajtoUseDoorLines){
         var orderRefVal = (document.getElementById("f-order")||{}).value || "";
         if (!orderRefVal.trim()){ setFieldError("f-order-field","Add meg a munka/rendelés azonosítót."); errorFields.push("f-order-field"); }
         else if (!/\d/.test(orderRefVal)){ setFieldError("f-order-field","Tartalmaznia kell egy számot (pl. 1889/26)."); errorFields.push("f-order-field"); }
@@ -1725,7 +1753,7 @@ function renderEntry(){
         if (firstField) firstField.scrollIntoView({ behavior:"smooth", block:"center" });
         return;
       }
-      if (ajtoUseDoorLines){
+      if (!repairDayVal && ajtoUseDoorLines){
         readDoorLinesFromDom();
         if (!doorLines.length){ toast("Adj hozzá legalább egy ajtót."); return; }
         var lineErrors = [];
@@ -1794,7 +1822,9 @@ function renderEntry(){
     }
     var items = {};
     var savedDoorLines = null;
-    if (ajtoUseDoorLines && dayType==="work"){
+    if (repairDayVal){
+      // egész napos javítás: nincs tétel/ajtó rögzítve
+    } else if (ajtoUseDoorLines && dayType==="work"){
       doorLines.forEach(function(l){
         items[l.doorType] = (items[l.doorType]||0) + 1;
         if (l.buildingType) items[l.buildingType] = (items[l.buildingType]||0) + 1;
@@ -1822,18 +1852,19 @@ function renderEntry(){
       personId: person.id, date: d, trade: person.trade, dayType: dayType,
       items: items,
       doorLines: savedDoorLines,
-      orderRef: ajtoDoorLinesMode ? "" : ((document.getElementById("f-order")||{}).value || ""),
+      repairDay: repairDayVal,
+      orderRef: (repairDayVal || ajtoDoorLinesMode) ? "" : ((document.getElementById("f-order")||{}).value || ""),
       assemblyHours: 0,
       bontasFestesOra: person.trade==="kerites" ? (parseFloat((document.getElementById("f-bontas")||{}).value)||0) : 0,
       garanciaEgyebOra: person.trade==="kerites" ? (parseFloat((document.getElementById("f-garancia")||{}).value)||0) : 0,
       workStart: (person.trade==="kerites" || person.trade==="ajto") ? ((document.getElementById("f-work-start")||{}).value || "") : "",
       workEnd: (person.trade==="kerites" || person.trade==="ajto") ? ((document.getElementById("f-work-end")||{}).value || "") : "",
       comment: document.getElementById("f-comment").value,
-      addressStatus: ajtoDoorLinesMode ? null : (((person.trade==="kerites" || person.trade==="ajto") && dayType==="work") ? addressStatus : null),
+      addressStatus: (repairDayVal || ajtoDoorLinesMode) ? null : (((person.trade==="kerites" || person.trade==="ajto") && dayType==="work") ? addressStatus : null),
       crewSize: (person.trade==="kerites" && dayType==="work") ? (parseInt((document.getElementById("f-crew-size")||{}).value,10)||null) : null,
-      problemType: ajtoDoorLinesMode ? null : (((person.trade==="kerites" || person.trade==="ajto") && dayType==="work" && addressStatus==="problem") ? (document.getElementById("f-problem-type")||{}).value : null),
-      metalCoverSizes: ajtoDoorLinesMode ? null : ((person.trade==="ajto" && dayType==="work" && addressStatus==="problem" && (document.getElementById("f-problem-type")||{}).value===METAL_COVER_PROBLEM_TYPE) ? metalCovers.map(function(c){ return c.excluded ? {excluded:true,a:null,b:null} : {excluded:false,a:c.a,b:c.b}; }) : null),
-      teamColor: (person.trade==="ajto" && dayType==="work") ? ((document.getElementById("f-teamcolor")||{}).value || null) : null,
+      problemType: (repairDayVal || ajtoDoorLinesMode) ? null : (((person.trade==="kerites" || person.trade==="ajto") && dayType==="work" && addressStatus==="problem") ? (document.getElementById("f-problem-type")||{}).value : null),
+      metalCoverSizes: (repairDayVal || ajtoDoorLinesMode) ? null : ((person.trade==="ajto" && dayType==="work" && addressStatus==="problem" && (document.getElementById("f-problem-type")||{}).value===METAL_COVER_PROBLEM_TYPE) ? metalCovers.map(function(c){ return c.excluded ? {excluded:true,a:null,b:null} : {excluded:false,a:c.a,b:c.b}; }) : null),
+      teamColor: (!repairDayVal && person.trade==="ajto" && dayType==="work") ? ((document.getElementById("f-teamcolor")||{}).value || null) : null,
       submittedAt: new Date().toISOString()
     };
     function finishSave(){ toast("Mentve! Köszi a munkát."); render(); }
@@ -2319,14 +2350,14 @@ function buildPersonMonthTab(person, month, locked){
   var groupHeaderRow = "";
   if (isAjto){
     var groups = groupAjtoItems(STATE.catalog.ajto.items);
-    var trailingCount = 5 + 2; // Túlóra + Kezdés + Vég + Csapatszín + Probléma + Megjegyzés + Érték
+    var trailingCount = 6 + 2; // Javítás + Túlóra + Kezdés + Vég + Csapatszín + Probléma + Megjegyzés + Érték
     groupHeaderRow = '<tr><th colspan="2"></th>' + groups.map(function(g){
       return '<th colspan="'+g.items.length+'" style="text-align:center;background:var(--surface-2)">'+escapeHtml(g.label)+'</th>';
     }).join("") + '<th colspan="'+trailingCount+'"></th></tr>';
   }
   var itemHeadCells = items.map(function(it){ return '<th>'+itemColLabel(it)+'</th>'; }).join("");
   var extraHeadCells = isAjto
-    ? '<th>Túlóra<br><span class="muted" style="font-weight:400;font-size:.68rem">9 óra fölött</span></th><th>Kezdés</th><th>Vég</th><th>Csapatszín</th><th>Probléma</th>'
+    ? '<th>Javítás<br><span class="muted" style="font-weight:400;font-size:.68rem">egész napos</span></th><th>Túlóra<br><span class="muted" style="font-weight:400;font-size:.68rem">9 óra fölött</span></th><th>Kezdés</th><th>Vég</th><th>Csapatszín</th><th>Probléma</th>'
     : '<th>Kezdés</th><th>Vég</th><th>Bontás/<br>festés</th><th>Garancia/<br>egyéb</th>';
 
   var rows = "";
@@ -2344,10 +2375,11 @@ function buildPersonMonthTab(person, month, locked){
       return '<td><input type="number" min="0" data-pm-item="'+it.key+'" value="'+q+'"'+(locked?" disabled":"")+'></td>';
     }).join("");
 
-    var otHours = (e && person.trade==="ajto") ? ajtoOvertimeHours(e) : 0;
-    var otPay = (e && person.trade==="ajto") ? ajtoOvertimePay(e, person) : 0;
+    var otHours = (e && person.trade==="ajto" && !e.repairDay) ? ajtoOvertimeHours(e) : 0;
+    var otPay = (e && person.trade==="ajto" && !e.repairDay) ? ajtoOvertimePay(e, person) : 0;
     var extraCells = isAjto
-      ? '<td class="mono" style="text-align:center">'+(otHours>0 ? otHours.toFixed(2)+' ó<br>'+fmtFt(otPay) : '—')+'</td>' +
+      ? '<td style="text-align:center"><input type="checkbox" data-pm-field="repairDay" style="width:1.2rem;height:1.2rem"'+(e&&e.repairDay?" checked":"")+(locked?" disabled":"")+'></td>' +
+        '<td class="mono" style="text-align:center">'+(e && e.repairDay ? fmtFt(ajtoRepairPay(e,person)) : (otHours>0 ? otHours.toFixed(2)+' ó<br>'+fmtFt(otPay) : '—'))+'</td>' +
         '<td><input type="time" data-pm-field="workStart" value="'+escapeHtml((e&&e.workStart)||"")+'"'+(locked?" disabled":"")+'></td>' +
         '<td><input type="time" data-pm-field="workEnd" value="'+escapeHtml((e&&e.workEnd)||"")+'"'+(locked?" disabled":"")+'></td>' +
         '<td><select data-pm-field="teamColor"'+(locked?" disabled":"")+'>' +
@@ -2407,11 +2439,12 @@ function wirePersonMonthTab(person, month, locked){
       });
       var fields = {};
       row.querySelectorAll("[data-pm-field]").forEach(function(inp){
-        fields[inp.getAttribute("data-pm-field")] = inp.value;
+        var key = inp.getAttribute("data-pm-field");
+        fields[key] = inp.type === "checkbox" ? inp.checked : inp.value;
       });
       var hasItems = Object.keys(items).length > 0;
       var hasHours = trade==="ajto"
-        ? (!!fields.workStart || !!fields.workEnd || !!fields.teamColor)
+        ? (!!fields.workStart || !!fields.workEnd || !!fields.teamColor || !!fields.repairDay)
         : ((parseFloat(fields.bontasFestesOra)||0) > 0 || (parseFloat(fields.garanciaEgyebOra)||0) > 0 || !!fields.workStart || !!fields.workEnd);
       var hasComment = fields.comment && fields.comment.trim() !== "";
       var existing = entryFor(person.id, dateStr);
@@ -2424,6 +2457,7 @@ function wirePersonMonthTab(person, month, locked){
         items: items,
         orderRef: existing ? (existing.orderRef||"") : "",
         assemblyHours: 0,
+        repairDay: trade==="ajto" ? !!fields.repairDay : false,
         bontasFestesOra: trade==="kerites" ? (parseFloat(fields.bontasFestesOra)||0) : 0,
         garanciaEgyebOra: trade==="kerites" ? (parseFloat(fields.garanciaEgyebOra)||0) : 0,
         workStart: (trade==="kerites" || trade==="ajto") ? (fields.workStart||"") : "",
@@ -3061,7 +3095,10 @@ function buildPricingTab(people, trade){
   var extraRate = trade==="ajto"
     ? '<div class="row" style="max-width:420px;margin-top:1rem"><div class="field"><label>Túlóradíj — vezető szerelő (Ft/óra)</label><input type="number" id="a-overtime-vezeto" value="'+STATE.catalog.ajto.overtimeRates.vezeto+'"></div>' +
       '<div class="field"><label>Túlóradíj — segéd szerelő (Ft/óra)</label><input type="number" id="a-overtime-seged" value="'+STATE.catalog.ajto.overtimeRates.seged+'"></div></div>' +
-      '<p class="muted" style="font-size:.8rem;margin-top:.4rem">A napi 9 óra fölötti ledolgozott idő (Munkakezdés–Munkavég alapján, tört órával) után jár, a szerelő szerepköre szerinti díjjal.</p>'
+      '<p class="muted" style="font-size:.8rem;margin-top:.4rem">A napi 9 óra fölötti ledolgozott idő (Munkakezdés–Munkavég alapján, tört órával) után jár, a szerelő szerepköre szerinti díjjal.</p>' +
+      '<div class="row" style="max-width:420px;margin-top:1rem"><div class="field"><label>Javítási órabér — vezető szerelő (Ft/óra)</label><input type="number" id="a-repair-vezeto" value="'+STATE.catalog.ajto.repairRates.vezeto+'"></div>' +
+      '<div class="field"><label>Javítási órabér — segéd szerelő (Ft/óra)</label><input type="number" id="a-repair-seged" value="'+STATE.catalog.ajto.repairRates.seged+'"></div></div>' +
+      '<p class="muted" style="font-size:.8rem;margin-top:.4rem">Egész napos javításnál jár, a teljes ledolgozott idő után (tört órával), útiköltség és tételes díjazás nélkül.</p>'
     : '<div class="row" style="max-width:420px;margin-top:1rem"><div class="field"><label>Fix utazási idő (óra/nap)</label><input type="number" step="0.1" id="a-fixed-utazas" value="'+STATE.catalog.kerites.fixedDailyHours.utazas+'"></div>' +
       '<div class="field"><label>Fix járulékos idő (óra/nap)</label><input type="number" step="0.1" id="a-fixed-jarulekos" value="'+STATE.catalog.kerites.fixedDailyHours.jarulekos+'"></div></div>';
   return '<h1 class="admin-h1">Árazás — '+(trade==="ajto"?"ajtó":"kerítés")+'</h1>' +
@@ -3081,9 +3118,11 @@ function wirePricingTab(people, trade){
       });
       STATE.catalog.ajto.overtimeRates.vezeto = parseFloat(document.getElementById("a-overtime-vezeto").value)||0;
       STATE.catalog.ajto.overtimeRates.seged = parseFloat(document.getElementById("a-overtime-seged").value)||0;
+      STATE.catalog.ajto.repairRates.vezeto = parseFloat(document.getElementById("a-repair-vezeto").value)||0;
+      STATE.catalog.ajto.repairRates.seged = parseFloat(document.getElementById("a-repair-seged").value)||0;
       Promise.all([
         sbUpsert("ajto_prices", priceRows, "person_id,item_key"),
-        sb("settings?id=eq.1", { method:"PATCH", body:{overtime_rate_vezeto: STATE.catalog.ajto.overtimeRates.vezeto, overtime_rate_seged: STATE.catalog.ajto.overtimeRates.seged}, prefer:"return=minimal" })
+        sb("settings?id=eq.1", { method:"PATCH", body:{overtime_rate_vezeto: STATE.catalog.ajto.overtimeRates.vezeto, overtime_rate_seged: STATE.catalog.ajto.overtimeRates.seged, repair_rate_vezeto: STATE.catalog.ajto.repairRates.vezeto, repair_rate_seged: STATE.catalog.ajto.repairRates.seged}, prefer:"return=minimal" })
       ]).then(function(){ toast("Árazás mentve."); render(); }).catch(sbFail);
     } else {
       var hourRows = [];
@@ -3250,10 +3289,12 @@ function openEntryModal(personId, date){
       (e.orderRef? '<p class="muted">Munka: '+escapeHtml(e.orderRef)+'</p>' : '') +
       (person.trade==="kerites" && e.crewSize ? '<p class="muted">Bevallott létszám: '+e.crewSize+' fő'+(keritesActualCrewSize(e) && keritesActualCrewSize(e)>e.crewSize ? ' <span style="color:var(--flag)">(ténylegesen azonosítva: '+keritesActualCrewSize(e)+' fő)</span>' : '')+'</p>' : '') +
       (overrideItem ? '<p class="pill info">'+escapeHtml(overrideItem.label)+' nap — '+overrideItem.hoursPerUnit+' óra (fix)</p>' : '') +
-      '<div>'+ (rows || '<p class="muted">Nincs tétel.</p>') + '</div>' +
+      (person.trade==="ajto" && e.repairDay ? '<p class="pill info">Egész napos javítás</p>' : '') +
+      (person.trade==="ajto" && e.repairDay ? '' : '<div>'+ (rows || '<p class="muted">Nincs tétel.</p>') + '</div>') +
       (person.trade==="ajto" && e.workStart && e.workEnd ? '<div class="recent-item"><span>Munkaidő</span><span class="mono">'+e.workStart+'–'+e.workEnd+'</span></div>' : '') +
-      (person.trade==="ajto" && e.teamColor ? '<div class="recent-item"><span>Csapatszín</span><span class="mono">'+escapeHtml(e.teamColor)+'</span></div>' : '') +
-      (person.trade==="ajto" && ajtoOvertimeHours(e) > 0 ? '<div class="recent-item"><span>Túlóra (9 óra fölött)</span><span class="mono">'+ajtoOvertimeHours(e).toFixed(2)+' óra × '+fmtFt(ajtoOvertimeRate(person))+'/óra = '+fmtFt(ajtoOvertimePay(e,person))+'</span></div>' : '') +
+      (person.trade==="ajto" && !e.repairDay && e.teamColor ? '<div class="recent-item"><span>Csapatszín</span><span class="mono">'+escapeHtml(e.teamColor)+'</span></div>' : '') +
+      (person.trade==="ajto" && e.repairDay ? '<div class="recent-item"><span>Javítási órabér</span><span class="mono">'+(workedHoursOf(e)||0).toFixed(2)+' óra × '+fmtFt(ajtoRepairRate(person))+'/óra = '+fmtFt(ajtoRepairPay(e,person))+'</span></div>' : '') +
+      (person.trade==="ajto" && !e.repairDay && ajtoOvertimeHours(e) > 0 ? '<div class="recent-item"><span>Túlóra (9 óra fölött)</span><span class="mono">'+ajtoOvertimeHours(e).toFixed(2)+' óra × '+fmtFt(ajtoOvertimeRate(person))+'/óra = '+fmtFt(ajtoOvertimePay(e,person))+'</span></div>' : '') +
       (person.trade==="kerites" && (e.bontasFestesOra||e.garanciaEgyebOra) ? '<div class="recent-item"><span>Bontás/festés + garancia</span><span class="mono">'+((e.bontasFestesOra||0)+(e.garanciaEgyebOra||0))+' óra</span></div>' : '') +
       (person.trade==="kerites" ? keritesHoursInfoHtml(e) : '') +
       '<div class="recent-item"><strong>Érték</strong><strong class="mono">'+fmtFt(calcEntryValue(e,person))+'</strong></div>' +
