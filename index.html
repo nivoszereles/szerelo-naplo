@@ -168,6 +168,9 @@ var APP_CSS = [
 ".addr-status-btn.active[data-addrstatus=done]{background:var(--ok);color:#fff;border-color:var(--ok);}",
 ".addr-status-btn.active[data-addrstatus=continue]{background:var(--warn);color:#fff;border-color:var(--warn);}",
 ".addr-status-btn.active[data-addrstatus=problem]{background:var(--flag);color:#fff;border-color:var(--flag);}",
+".dl-status-btn{flex:1 1 auto;min-width:104px;padding:.65rem .5rem;border-radius:10px;border:2px solid #000;background:var(--surface-2);font-weight:600;font-size:.8rem;cursor:pointer;color:var(--ink-muted);font-family:'Public Sans',sans-serif;line-height:1.25;}",
+".dl-status-btn.active[data-dl-status=done]{background:var(--ok);color:#fff;border-color:var(--ok);}",
+".dl-status-btn.active[data-dl-status=problem]{background:var(--flag);color:#fff;border-color:var(--flag);}",
 ".photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:.5rem;margin-top:.5rem;}",
 ".photo-thumb{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:var(--surface-2);}",
 ".photo-thumb img{width:100%;height:100%;object-fit:cover;display:block;}",
@@ -421,6 +424,10 @@ function groupAjtoItems(items){
 function ajtoItemsByGroup(groupKey){
   return STATE.catalog.ajto.items.filter(function(it){ return (it.group||"kiegeszito")===groupKey; });
 }
+function ajtoItemLabel(key){
+  var it = STATE.catalog.ajto.items.find(function(x){ return x.key===key; });
+  return it ? it.label : key;
+}
 
 function roleKey(role){
   if (role === "Vezető szerelő") return "vezeto";
@@ -457,6 +464,10 @@ var METAL_COVER_NAMES = ["Bal oldali takaró", "Felső takaró", "Jobb oldali ta
 var AJTO_TEAM_COLORS = ["Kék", "Piros", "Zöld", "Fekete", "Narancs"];
 function blankMetalCovers(){
   return [{excluded:false,a:null,b:null},{excluded:false,a:null,b:null},{excluded:false,a:null,b:null}];
+}
+function ajtoEntryHasProblem(e){
+  if (e.doorLines && e.doorLines.length) return e.doorLines.some(function(l){ return l.status==="problem"; });
+  return e.addressStatus==="problem";
 }
 function keritesHourBreakdown(entry){
   var perf, overrideItem = keritesOverrideItem(entry);
@@ -740,7 +751,7 @@ function compressImageFile(file, maxDim, quality){
     img.src = url;
   });
 }
-function uploadEntryPhoto(entryId, blob){
+function uploadEntryPhoto(entryId, blob, doorLineId){
   var filename = entryId + "/" + Date.now() + "-" + Math.random().toString(36).slice(2,8) + ".jpg";
   return fetch(SUPABASE_URL + "/storage/v1/object/entry-photos/" + filename, {
     method: "POST",
@@ -748,7 +759,7 @@ function uploadEntryPhoto(entryId, blob){
     body: blob
   }).then(function(r){
     if (!r.ok) return r.text().then(function(t){ throw new Error(t); });
-    return sb("entry_photos", { method:"POST", body:[{ entry_id: entryId, path: filename }], prefer:"return=minimal" });
+    return sb("entry_photos", { method:"POST", body:[{ entry_id: entryId, path: filename, door_line_id: doorLineId||null }], prefer:"return=minimal" });
   });
 }
 function deleteEntryPhoto(photo){
@@ -815,7 +826,7 @@ function loadState(afterOk){
 
     var photosByEntryId = {};
     (r[8]||[]).forEach(function(row){
-      (photosByEntryId[row.entry_id] = photosByEntryId[row.entry_id] || []).push({ id: row.id, path: row.path });
+      (photosByEntryId[row.entry_id] = photosByEntryId[row.entry_id] || []).push({ id: row.id, path: row.path, doorLineId: row.door_line_id||null });
     });
     var entries = (r[5]||[]).map(function(row){
       var items = {};
@@ -900,8 +911,7 @@ function toast(msg){
   document.body.appendChild(el);
   setTimeout(function(){ el.remove(); }, 3200);
 }
-function setFieldError(fieldId, message){
-  var field = document.getElementById(fieldId);
+function setFieldErrorEl(field, message){
   if (!field) return;
   field.classList.add("field-invalid");
   var msgEl = field.querySelector(".field-error-msg");
@@ -912,13 +922,14 @@ function setFieldError(fieldId, message){
   }
   msgEl.textContent = message;
 }
-function clearFieldError(fieldId){
-  var field = document.getElementById(fieldId);
+function clearFieldErrorEl(field){
   if (!field) return;
   field.classList.remove("field-invalid");
   var msgEl = field.querySelector(".field-error-msg");
   if (msgEl) msgEl.remove();
 }
+function setFieldError(fieldId, message){ setFieldErrorEl(document.getElementById(fieldId), message); }
+function clearFieldError(fieldId){ clearFieldErrorEl(document.getElementById(fieldId)); }
 
 /* ---------- RENDER ---------- */
 function h(html){ var t=document.createElement("template"); t.innerHTML=html.trim(); return t.content.firstChild; }
@@ -1106,19 +1117,69 @@ function renderEntry(){
       return '<label class="extra-check"><input type="checkbox" data-extra="'+it.key+'"'+(checked?" checked":"")+'> '+escapeHtml(it.label)+'</label>';
     }).join("");
   }
+  function mcIconSvg(){
+    return '<svg viewBox="0 0 60 60" width="34" height="34"><path d="M10 54 L10 10 L54 10" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
+  function mcCardsHtml(covers){
+    return covers.map(function(c, idx){
+      if (c.excluded){
+        return '<div class="mc-card excluded" data-mc-idx="'+idx+'">' +
+          '<div class="mc-icon">'+mcIconSvg()+'</div>' +
+          '<p class="muted">'+escapeHtml(METAL_COVER_NAMES[idx])+' — kizárva</p>' +
+          '<button type="button" class="ghost mc-restore" data-mc-restore="'+idx+'" style="width:100%">Visszaállítás</button>' +
+          '</div>';
+      }
+      return '<div class="mc-card" data-mc-idx="'+idx+'">' +
+        '<button type="button" class="mc-remove" data-mc-exclude="'+idx+'" title="Ez a takaró nem hibás">×</button>' +
+        '<div class="mc-icon">'+mcIconSvg()+'</div>' +
+        '<p class="muted" style="margin:0 0 .5rem">'+escapeHtml(METAL_COVER_NAMES[idx])+'</p>' +
+        '<div class="field"><label>1. szár (mm)</label><input type="number" min="0" class="mc-a" value="'+(c.a!=null?c.a:"")+'"></div>' +
+        '<div class="field"><label>2. szár (mm)</label><input type="number" min="0" class="mc-b" value="'+(c.b!=null?c.b:"")+'"></div>' +
+        '</div>';
+    }).join("");
+  }
   function doorLineCardHtml(line){
-    return '<div class="door-line-card" data-line-id="'+line._id+'">' +
-      '<button type="button" class="door-line-remove" data-remove-line="'+line._id+'" title="Ajtó törlése">×</button>' +
+    var isProblem = line.status === "problem";
+    var showMc = isProblem && line.problemType === METAL_COVER_PROBLEM_TYPE;
+    return '<div class="door-line-card" data-line-id="'+line.lineId+'">' +
+      '<button type="button" class="door-line-remove" data-remove-line="'+line.lineId+'" title="Ajtó törlése">×</button>' +
       '<div class="field"><label>Cím / vevő</label><input type="text" class="dl-address" placeholder="pl. Kossuth u. 12." value="'+escapeHtml(line.address||"")+'"></div>' +
-      '<div class="field"><label>Ajtó típus <span style="color:var(--flag)">*</span></label><select class="dl-door-type">'+doorTypeOptionsHtml(line.doorType)+'</select></div>' +
+      '<div class="field dl-orderref-field"><label>Munka / rendelés azonosító <span style="color:var(--flag)">*</span></label><input type="text" class="dl-order" placeholder="pl. 1060/26" value="'+escapeHtml(line.orderRef||"")+'"></div>' +
+      '<div class="field dl-doortype-field"><label>Ajtó típus <span style="color:var(--flag)">*</span></label><select class="dl-door-type">'+doorTypeOptionsHtml(line.doorType)+'</select></div>' +
       '<div class="field"><label>Épület típus</label><select class="dl-building-type">'+buildingTypeOptionsHtml(line.buildingType)+'</select></div>' +
       '<div class="field"><label>Kiegészítők</label><div class="extras-check-grid">'+extrasCheckboxesHtml(line.extras||[])+'</div></div>' +
+      '<div class="field dl-status-field" style="margin-top:.9rem"><label>Beépítés állapota <span style="color:var(--flag)">*</span></label><div class="addr-status-group">' +
+      '<button type="button" class="dl-status-btn" data-dl-status="done"'+(line.status==="done"?" active":"")+'>Kész</button>' +
+      '<button type="button" class="dl-status-btn" data-dl-status="problem"'+(isProblem?" active":"")+'>Probléma merült fel, vissza kell menni</button>' +
+      '</div></div>' +
+      '<div class="field dl-problem-field dl-comment-field" style="margin-top:.9rem;'+(isProblem?'':'display:none')+'"><label>Hiba leírása <span style="color:var(--flag)">*</span></label><textarea class="dl-comment" placeholder="Írd le, milyen probléma merült fel...">'+escapeHtml(line.comment||"")+'</textarea></div>' +
+      '<div class="field dl-problem-field dl-problemtype-field" style="margin-top:.9rem;'+(isProblem?'':'display:none')+'"><label>Hiba típusa <span style="color:var(--flag)">*</span></label>' +
+      '<select class="dl-problem-type"><option value=""'+(!line.problemType?" selected":"")+'>— válassz —</option>' +
+      AJTO_PROBLEM_TYPES.map(function(t){ return '<option value="'+escapeHtml(t)+'"'+(line.problemType===t?" selected":"")+'>'+escapeHtml(t)+'</option>'; }).join("") +
+      '</select></div>' +
+      '<div class="field dl-problem-field dl-photos-field" style="margin-top:.9rem;'+(isProblem?'':'display:none')+'"><label>Fotó a hibáról <span style="color:var(--flag)">*</span></label>' +
+      '<div class="photo-grid dl-photo-grid" data-line-photos="'+line.lineId+'"></div>' +
+      '<input type="file" accept="image/*" class="dl-photo-input" style="display:none">' +
+      '<input type="file" accept="image/*" capture="environment" class="dl-photo-input-camera" style="display:none">' +
+      '<p class="muted" style="font-size:.78rem;margin-top:.3rem">Legalább 1 fotó kötelező, ha probléma merült fel.</p>' +
+      '</div>' +
+      '<div class="field dl-metalcovers-field" style="margin-top:.9rem;'+(showMc?'':'display:none')+'"><label>Fém takarók méretei <span style="color:var(--flag)">*</span></label>' +
+      '<div class="metalcover-grid dl-metalcover-grid" data-line-mc="'+line.lineId+'"></div>' +
+      '<p class="muted" style="font-size:.78rem;margin-top:.5rem">Minden takarónál add meg mindkét méretet (mm), vagy X-eld ki, ha az a takaró nem hibás.</p>' +
+      '</div>' +
       '</div>';
   }
   if (ajtoUseDoorLines){
-    (existing.doorLines||[]).forEach(function(l){
+    (existing.doorLines||[]).forEach(function(l, lidx){
       doorLineSeq++;
-      doorLines.push({ _id: doorLineSeq, doorType: l.doorType||"", buildingType: l.buildingType||"", extras: (l.extras||[]).slice(), address: l.address||"" });
+      var lineId = l.lineId || ("dl-legacy-"+lidx);
+      var linePhotos = (existing.photos||[]).filter(function(p){ return p.doorLineId===lineId; });
+      doorLines.push({
+        lineId: lineId, doorType: l.doorType||"", buildingType: l.buildingType||"", extras: (l.extras||[]).slice(), address: l.address||"",
+        orderRef: l.orderRef||"", status: l.status||null, comment: l.comment||"", problemType: l.problemType||null,
+        _photos: { existing: linePhotos, removed: [], pending: [] },
+        _metalCovers: (l.metalCoverSizes && l.metalCoverSizes.length===3) ? l.metalCoverSizes.map(function(c){ return { excluded: !!c.excluded, a: (c.a!=null?c.a:null), b: (c.b!=null?c.b:null) }; }) : blankMetalCovers()
+      });
     });
     counters = '<div id="door-lines-list">' + doorLines.map(doorLineCardHtml).join("") + '</div>' +
       '<button type="button" class="ghost" id="dl-add-btn" style="margin-bottom:.9rem">+ Új ajtó</button>';
@@ -1184,7 +1245,7 @@ function renderEntry(){
         '<p class="muted" style="font-size:.78rem;margin-top:.3rem">Legalább 1 fotó kötelező, ha probléma merült fel.</p>' +
         '</div>'
       ) : '');
-  } else if (person.trade === "ajto"){
+  } else if (person.trade === "ajto" && !ajtoUseDoorLines){
     addrStatusFieldHtml = '<div class="field" id="f-addrstatus-field" style="margin-top:.9rem"><label>Beépítés állapota <span style="color:var(--flag)">*</span></label><div class="addr-status-group">' +
       '<button type="button" class="addr-status-btn" data-addrstatus="done">Kész</button>' +
       '<button type="button" class="addr-status-btn" data-addrstatus="problem">Probléma merült fel, vissza kell menni</button>' +
@@ -1224,7 +1285,9 @@ function renderEntry(){
     '<button type="button" class="day-type-btn" data-daytype="sick">Betegállomány</button>' +
     '</div></div>' +
     '<div id="work-fields">' +
-    '<div class="field" id="f-order-field"><label>Munka / rendelés azonosító <span style="color:var(--flag)">*</span></label><input type="text" id="f-order" placeholder="pl. 1060/26" value="'+escapeHtml(existing.orderRef||"")+'">'+(person.trade==="kerites" ? '<p class="muted" id="f-crew-preview" style="font-size:.78rem;margin-top:.4rem"></p>' : '')+'</div>' +
+    (!(person.trade==="ajto" && ajtoUseDoorLines) ? (
+      '<div class="field" id="f-order-field"><label>Munka / rendelés azonosító <span style="color:var(--flag)">*</span></label><input type="text" id="f-order" placeholder="pl. 1060/26" value="'+escapeHtml(existing.orderRef||"")+'">'+(person.trade==="kerites" ? '<p class="muted" id="f-crew-preview" style="font-size:.78rem;margin-top:.4rem"></p>' : '')+'</div>'
+    ) : '') +
     timeFields +
     (itemsLabel ? '<label>'+itemsLabel+'</label>' : '') + counters +
     extraFields +
@@ -1369,28 +1432,10 @@ function renderEntry(){
     if (fPhotoInputCamera) fPhotoInputCamera.onchange = onPhotoInputChange;
   }
 
-  function mcIconSvg(){
-    return '<svg viewBox="0 0 60 60" width="34" height="34"><path d="M10 54 L10 10 L54 10" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  }
   function renderMetalCoverGrid(){
     var grid = document.getElementById("metalcover-grid");
     if (!grid) return;
-    grid.innerHTML = metalCovers.map(function(c, idx){
-      if (c.excluded){
-        return '<div class="mc-card excluded" data-mc-idx="'+idx+'">' +
-          '<div class="mc-icon">'+mcIconSvg()+'</div>' +
-          '<p class="muted">'+escapeHtml(METAL_COVER_NAMES[idx])+' — kizárva</p>' +
-          '<button type="button" class="ghost mc-restore" data-mc-restore="'+idx+'" style="width:100%">Visszaállítás</button>' +
-          '</div>';
-      }
-      return '<div class="mc-card" data-mc-idx="'+idx+'">' +
-        '<button type="button" class="mc-remove" data-mc-exclude="'+idx+'" title="Ez a takaró nem hibás">×</button>' +
-        '<div class="mc-icon">'+mcIconSvg()+'</div>' +
-        '<p class="muted" style="margin:0 0 .5rem">'+escapeHtml(METAL_COVER_NAMES[idx])+'</p>' +
-        '<div class="field"><label>1. szár (mm)</label><input type="number" min="0" class="mc-a" value="'+(c.a!=null?c.a:"")+'"></div>' +
-        '<div class="field"><label>2. szár (mm)</label><input type="number" min="0" class="mc-b" value="'+(c.b!=null?c.b:"")+'"></div>' +
-        '</div>';
-    }).join("");
+    grid.innerHTML = mcCardsHtml(metalCovers);
     grid.querySelectorAll("[data-mc-exclude]").forEach(function(btn){
       btn.onclick = function(){
         metalCovers[parseInt(btn.getAttribute("data-mc-exclude"),10)].excluded = true;
@@ -1418,25 +1463,159 @@ function renderEntry(){
       };
     });
   }
-  if (person.trade === "ajto") renderMetalCoverGrid();
+  if (person.trade === "ajto" && !ajtoUseDoorLines) renderMetalCoverGrid();
+
+  function lineCard(line){
+    return document.querySelector('.door-line-card[data-line-id="'+line.lineId+'"]');
+  }
+  function lineField(line, cls){
+    var card = lineCard(line);
+    return card ? card.querySelector("."+cls) : null;
+  }
+  function activeLinePhotoCount(line){
+    return line._photos.existing.filter(function(p){ return line._photos.removed.indexOf(String(p.id)) === -1; }).length + line._photos.pending.length;
+  }
+  function renderDoorLinePhotoGrid(line){
+    var grid = document.querySelector('[data-line-photos="'+line.lineId+'"]');
+    if (!grid) return;
+    var ph = line._photos;
+    var html = "";
+    ph.existing.forEach(function(p){
+      if (ph.removed.indexOf(String(p.id)) !== -1) return;
+      html += '<div class="photo-thumb"><img src="'+photoPublicUrl(p.path)+'"><button type="button" class="photo-remove" data-dl-existing="'+p.id+'">×</button></div>';
+    });
+    ph.pending.forEach(function(p, idx){
+      html += '<div class="photo-thumb"><img src="'+p.previewUrl+'"><button type="button" class="photo-remove" data-dl-pending="'+idx+'">×</button></div>';
+    });
+    if (activeLinePhotoCount(line) < MAX_ENTRY_PHOTOS){
+      html += '<button type="button" class="photo-add-btn dl-photo-add-camera" title="Fénykép készítése">📷</button>';
+      html += '<button type="button" class="photo-add-btn dl-photo-add-gallery" title="Galériából">🖼️</button>';
+    }
+    grid.innerHTML = html;
+    var card = lineCard(line);
+    if (!card) return;
+    var addCam = card.querySelector(".dl-photo-add-camera");
+    if (addCam) addCam.onclick = function(){ card.querySelector(".dl-photo-input-camera").click(); };
+    var addGal = card.querySelector(".dl-photo-add-gallery");
+    if (addGal) addGal.onclick = function(){ card.querySelector(".dl-photo-input").click(); };
+    grid.querySelectorAll("[data-dl-existing]").forEach(function(btn){
+      btn.onclick = function(){
+        if (!confirm("Biztosan törlöd ezt a fotót?")) return;
+        ph.removed.push(btn.getAttribute("data-dl-existing"));
+        renderDoorLinePhotoGrid(line);
+      };
+    });
+    grid.querySelectorAll("[data-dl-pending]").forEach(function(btn){
+      btn.onclick = function(){
+        ph.pending.splice(parseInt(btn.getAttribute("data-dl-pending"),10), 1);
+        renderDoorLinePhotoGrid(line);
+      };
+    });
+  }
+  function renderDoorLineMetalCoverGrid(line){
+    var grid = document.querySelector('[data-line-mc="'+line.lineId+'"]');
+    if (!grid) return;
+    var mc = line._metalCovers;
+    grid.innerHTML = mcCardsHtml(mc);
+    grid.querySelectorAll("[data-mc-exclude]").forEach(function(btn){
+      btn.onclick = function(){ mc[parseInt(btn.getAttribute("data-mc-exclude"),10)].excluded = true; renderDoorLineMetalCoverGrid(line); };
+    });
+    grid.querySelectorAll("[data-mc-restore]").forEach(function(btn){
+      btn.onclick = function(){ mc[parseInt(btn.getAttribute("data-mc-restore"),10)].excluded = false; renderDoorLineMetalCoverGrid(line); };
+    });
+    grid.querySelectorAll(".mc-a").forEach(function(inp){
+      inp.oninput = function(){
+        var idx = parseInt(inp.closest("[data-mc-idx]").getAttribute("data-mc-idx"),10);
+        mc[idx].a = inp.value===""?null:parseFloat(inp.value);
+        clearFieldErrorEl(lineField(line,"dl-metalcovers-field"));
+      };
+    });
+    grid.querySelectorAll(".mc-b").forEach(function(inp){
+      inp.oninput = function(){
+        var idx = parseInt(inp.closest("[data-mc-idx]").getAttribute("data-mc-idx"),10);
+        mc[idx].b = inp.value===""?null:parseFloat(inp.value);
+        clearFieldErrorEl(lineField(line,"dl-metalcovers-field"));
+      };
+    });
+  }
+  function wireDoorLineCard(line){
+    var card = lineCard(line);
+    if (!card) return;
+    var dlOrder = card.querySelector(".dl-order");
+    if (dlOrder) dlOrder.oninput = function(){ clearFieldErrorEl(lineField(line,"dl-orderref-field")); };
+    var dlDoorType = card.querySelector(".dl-door-type");
+    if (dlDoorType) dlDoorType.onchange = function(){ dlDoorType.classList.remove("field-error-input"); clearFieldErrorEl(lineField(line,"dl-doortype-field")); };
+    function syncLineMetalCoverUi(){
+      var mcf = lineField(line,"dl-metalcovers-field");
+      if (!mcf) return;
+      mcf.style.display = (line.status==="problem" && line.problemType===METAL_COVER_PROBLEM_TYPE) ? "" : "none";
+    }
+    function syncLineStatusUi(){
+      card.querySelectorAll(".dl-status-btn").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-dl-status")===line.status); });
+      var isProblem = line.status === "problem";
+      card.querySelectorAll(".dl-problem-field").forEach(function(f){ f.style.display = isProblem ? "" : "none"; });
+      syncLineMetalCoverUi();
+    }
+    card.querySelectorAll(".dl-status-btn").forEach(function(b){
+      b.onclick = function(){
+        line.status = b.getAttribute("data-dl-status");
+        syncLineStatusUi();
+        clearFieldErrorEl(lineField(line,"dl-status-field"));
+        if (line.status !== "problem"){
+          clearFieldErrorEl(lineField(line,"dl-comment-field"));
+          clearFieldErrorEl(lineField(line,"dl-problemtype-field"));
+          clearFieldErrorEl(lineField(line,"dl-photos-field"));
+          clearFieldErrorEl(lineField(line,"dl-metalcovers-field"));
+        }
+      };
+    });
+    var dlComment = card.querySelector(".dl-comment");
+    if (dlComment) dlComment.oninput = function(){ clearFieldErrorEl(lineField(line,"dl-comment-field")); };
+    var dlProblemType = card.querySelector(".dl-problem-type");
+    if (dlProblemType) dlProblemType.onchange = function(){
+      line.problemType = dlProblemType.value;
+      clearFieldErrorEl(lineField(line,"dl-problemtype-field"));
+      syncLineMetalCoverUi();
+    };
+    renderDoorLinePhotoGrid(line);
+    var inputCam = card.querySelector(".dl-photo-input-camera");
+    var inputGal = card.querySelector(".dl-photo-input");
+    function onLinePhotoChange(e){
+      var file = e.target.files && e.target.files[0];
+      e.target.value = "";
+      if (!file) return;
+      compressImageFile(file, PHOTO_MAX_DIM, PHOTO_QUALITY).then(function(blob){
+        line._photos.pending.push({ blob: blob, previewUrl: URL.createObjectURL(blob) });
+        renderDoorLinePhotoGrid(line);
+        clearFieldErrorEl(lineField(line,"dl-photos-field"));
+      }).catch(function(){ toast("Nem sikerült feldolgozni a fotót."); });
+    }
+    if (inputCam) inputCam.onchange = onLinePhotoChange;
+    if (inputGal) inputGal.onchange = onLinePhotoChange;
+    renderDoorLineMetalCoverGrid(line);
+    syncLineStatusUi();
+  }
 
   function readDoorLinesFromDom(){
     document.querySelectorAll(".door-line-card").forEach(function(card){
-      var id = parseInt(card.getAttribute("data-line-id"),10);
-      var line = doorLines.filter(function(l){ return l._id===id; })[0];
+      var id = card.getAttribute("data-line-id");
+      var line = doorLines.filter(function(l){ return l.lineId===id; })[0];
       if (!line) return;
       line.address = card.querySelector(".dl-address").value;
+      line.orderRef = card.querySelector(".dl-order").value;
       line.doorType = card.querySelector(".dl-door-type").value;
       line.buildingType = card.querySelector(".dl-building-type").value;
       line.extras = Array.prototype.slice.call(card.querySelectorAll("[data-extra]")).filter(function(cb){ return cb.checked; }).map(function(cb){ return cb.getAttribute("data-extra"); });
+      line.comment = (card.querySelector(".dl-comment")||{}).value || "";
+      line.problemType = (card.querySelector(".dl-problem-type")||{}).value || "";
     });
   }
   function wireDoorLineRemoveButtons(){
     document.querySelectorAll("[data-remove-line]").forEach(function(btn){
       btn.onclick = function(){
         readDoorLinesFromDom();
-        var id = parseInt(btn.getAttribute("data-remove-line"),10);
-        doorLines = doorLines.filter(function(l){ return l._id!==id; });
+        var id = btn.getAttribute("data-remove-line");
+        doorLines = doorLines.filter(function(l){ return l.lineId!==id; });
         rerenderDoorLinesList();
       };
     });
@@ -1446,14 +1625,17 @@ function renderEntry(){
     if (!container) return;
     container.innerHTML = doorLines.map(doorLineCardHtml).join("");
     wireDoorLineRemoveButtons();
+    doorLines.forEach(wireDoorLineCard);
   }
   if (ajtoUseDoorLines){
     wireDoorLineRemoveButtons();
+    doorLines.forEach(wireDoorLineCard);
     var dlAddBtn = document.getElementById("dl-add-btn");
     if (dlAddBtn) dlAddBtn.onclick = function(){
       readDoorLinesFromDom();
       doorLineSeq++;
-      doorLines.push({ _id: doorLineSeq, doorType:"", buildingType:"", extras:[], address:"" });
+      var newLineId = "dl-new-"+doorLineSeq+"-"+Date.now().toString(36);
+      doorLines.push({ lineId:newLineId, doorType:"", buildingType:"", extras:[], address:"", orderRef:"", status:null, comment:"", problemType:null, _photos:{existing:[],removed:[],pending:[]}, _metalCovers: blankMetalCovers() });
       rerenderDoorLinesList();
     };
   }
@@ -1502,24 +1684,26 @@ function renderEntry(){
       var errorFields = [];
       var teamColorVal = (document.getElementById("f-teamcolor")||{}).value || "";
       if (!teamColorVal){ setFieldError("f-teamcolor-field","Válaszd ki a csapatszínt."); errorFields.push("f-teamcolor-field"); }
-      var orderRefVal = (document.getElementById("f-order")||{}).value || "";
-      if (!orderRefVal.trim()){ setFieldError("f-order-field","Add meg a munka/rendelés azonosítót."); errorFields.push("f-order-field"); }
-      else if (!/\d/.test(orderRefVal)){ setFieldError("f-order-field","Tartalmaznia kell egy számot (pl. 1889/26)."); errorFields.push("f-order-field"); }
       var ws = (document.getElementById("f-work-start")||{}).value;
       var we = (document.getElementById("f-work-end")||{}).value;
       if (!ws){ setFieldError("f-work-start-field","Add meg a munkakezdést."); errorFields.push("f-work-start-field"); }
       if (!we){ setFieldError("f-work-end-field","Add meg a munkavéget."); errorFields.push("f-work-end-field"); }
       if (ws && we && timeToDecimal(we) <= timeToDecimal(ws)){ setFieldError("f-work-end-field","Később kell lennie, mint a munkakezdésnek."); errorFields.push("f-work-end-field"); }
-      if (!addressStatus){ setFieldError("f-addrstatus-field","Válaszd ki, hogy kész van-e, vagy probléma merült fel."); errorFields.push("f-addrstatus-field"); }
-      if (addressStatus === "problem" && !document.getElementById("f-comment").value.trim()){ setFieldError("f-comment-field","Írd le, milyen probléma merült fel."); errorFields.push("f-comment-field"); }
-      if (addressStatus === "problem" && !(document.getElementById("f-problem-type")||{}).value){ setFieldError("problem-type-field","Válaszd ki a hiba típusát."); errorFields.push("problem-type-field"); }
-      if (addressStatus === "problem" && activePhotoCount() < 1){ setFieldError("f-photos-field","Legalább 1 fotót kell csatolni a problémáról."); errorFields.push("f-photos-field"); }
-      if (addressStatus === "problem" && (document.getElementById("f-problem-type")||{}).value === METAL_COVER_PROBLEM_TYPE){
-        var mcIncomplete = metalCovers.some(function(c){ return !c.excluded && (c.a==null || c.b==null || isNaN(c.a) || isNaN(c.b) || c.a<=0 || c.b<=0); });
-        var mcAllExcluded = metalCovers.every(function(c){ return c.excluded; });
-        if (mcIncomplete || mcAllExcluded){
-          setFieldError("f-metalcovers-field","Minden takarónál add meg mindkét méretet, vagy X-eld ki, ha nem az hibás.");
-          errorFields.push("f-metalcovers-field");
+      if (!ajtoUseDoorLines){
+        var orderRefVal = (document.getElementById("f-order")||{}).value || "";
+        if (!orderRefVal.trim()){ setFieldError("f-order-field","Add meg a munka/rendelés azonosítót."); errorFields.push("f-order-field"); }
+        else if (!/\d/.test(orderRefVal)){ setFieldError("f-order-field","Tartalmaznia kell egy számot (pl. 1889/26)."); errorFields.push("f-order-field"); }
+        if (!addressStatus){ setFieldError("f-addrstatus-field","Válaszd ki, hogy kész van-e, vagy probléma merült fel."); errorFields.push("f-addrstatus-field"); }
+        if (addressStatus === "problem" && !document.getElementById("f-comment").value.trim()){ setFieldError("f-comment-field","Írd le, milyen probléma merült fel."); errorFields.push("f-comment-field"); }
+        if (addressStatus === "problem" && !(document.getElementById("f-problem-type")||{}).value){ setFieldError("problem-type-field","Válaszd ki a hiba típusát."); errorFields.push("problem-type-field"); }
+        if (addressStatus === "problem" && activePhotoCount() < 1){ setFieldError("f-photos-field","Legalább 1 fotót kell csatolni a problémáról."); errorFields.push("f-photos-field"); }
+        if (addressStatus === "problem" && (document.getElementById("f-problem-type")||{}).value === METAL_COVER_PROBLEM_TYPE){
+          var mcIncomplete = metalCovers.some(function(c){ return !c.excluded && (c.a==null || c.b==null || isNaN(c.a) || isNaN(c.b) || c.a<=0 || c.b<=0); });
+          var mcAllExcluded = metalCovers.every(function(c){ return c.excluded; });
+          if (mcIncomplete || mcAllExcluded){
+            setFieldError("f-metalcovers-field","Minden takarónál add meg mindkét méretet, vagy X-eld ki, ha nem az hibás.");
+            errorFields.push("f-metalcovers-field");
+          }
         }
       }
       if (errorFields.length){
@@ -1527,6 +1711,49 @@ function renderEntry(){
         var firstField = document.getElementById(errorFields[0]);
         if (firstField) firstField.scrollIntoView({ behavior:"smooth", block:"center" });
         return;
+      }
+      if (ajtoUseDoorLines){
+        readDoorLinesFromDom();
+        if (!doorLines.length){ toast("Adj hozzá legalább egy ajtót."); return; }
+        var lineErrors = [];
+        doorLines.forEach(function(line){
+          clearFieldErrorEl(lineField(line,"dl-doortype-field"));
+          clearFieldErrorEl(lineField(line,"dl-orderref-field"));
+          clearFieldErrorEl(lineField(line,"dl-status-field"));
+          clearFieldErrorEl(lineField(line,"dl-comment-field"));
+          clearFieldErrorEl(lineField(line,"dl-problemtype-field"));
+          clearFieldErrorEl(lineField(line,"dl-photos-field"));
+          clearFieldErrorEl(lineField(line,"dl-metalcovers-field"));
+          var dlDoorType = lineCard(line) ? lineCard(line).querySelector(".dl-door-type") : null;
+          if (dlDoorType) dlDoorType.classList.remove("field-error-input");
+          var bad = false;
+          if (!line.doorType){
+            if (dlDoorType) dlDoorType.classList.add("field-error-input");
+            setFieldErrorEl(lineField(line,"dl-doortype-field"), "Válaszd ki az ajtó típust.");
+            bad = true;
+          }
+          if (!line.orderRef || !line.orderRef.trim()){ setFieldErrorEl(lineField(line,"dl-orderref-field"), "Add meg a munka/rendelés azonosítót."); bad = true; }
+          else if (!/\d/.test(line.orderRef)){ setFieldErrorEl(lineField(line,"dl-orderref-field"), "Tartalmaznia kell egy számot (pl. 1889/26)."); bad = true; }
+          if (!line.status){ setFieldErrorEl(lineField(line,"dl-status-field"), "Válaszd ki, hogy kész van-e, vagy probléma merült fel."); bad = true; }
+          if (line.status === "problem"){
+            if (!line.comment || !line.comment.trim()){ setFieldErrorEl(lineField(line,"dl-comment-field"), "Írd le, milyen probléma merült fel."); bad = true; }
+            if (!line.problemType){ setFieldErrorEl(lineField(line,"dl-problemtype-field"), "Válaszd ki a hiba típusát."); bad = true; }
+            if (activeLinePhotoCount(line) < 1){ setFieldErrorEl(lineField(line,"dl-photos-field"), "Legalább 1 fotót kell csatolni a problémáról."); bad = true; }
+            if (line.problemType === METAL_COVER_PROBLEM_TYPE){
+              var mc = line._metalCovers;
+              var mcIncomplete2 = mc.some(function(c){ return !c.excluded && (c.a==null || c.b==null || isNaN(c.a) || isNaN(c.b) || c.a<=0 || c.b<=0); });
+              var mcAllExcluded2 = mc.every(function(c){ return c.excluded; });
+              if (mcIncomplete2 || mcAllExcluded2){ setFieldErrorEl(lineField(line,"dl-metalcovers-field"), "Minden takarónál add meg mindkét méretet, vagy X-eld ki, ha nem az hibás."); bad = true; }
+            }
+          }
+          if (bad) lineErrors.push(line);
+        });
+        if (lineErrors.length){
+          toast(lineErrors.length===1 ? "Egy ajtónál hiányzik egy kötelező mező — nézd át pirossal jelölve." : lineErrors.length+" ajtónál hiányzik egy kötelező mező — nézd át pirossal jelölve.");
+          var firstBadCard = lineCard(lineErrors[0]);
+          if (firstBadCard) firstBadCard.scrollIntoView({ behavior:"smooth", block:"center" });
+          return;
+        }
       }
     }
     if (person.trade==="kerites" && dayType==="work"){
@@ -1555,26 +1782,20 @@ function renderEntry(){
     var items = {};
     var savedDoorLines = null;
     if (ajtoUseDoorLines && dayType==="work"){
-      readDoorLinesFromDom();
-      document.querySelectorAll(".dl-door-type").forEach(function(sel){ sel.classList.remove("field-error-input"); });
-      var missingDoorType = doorLines.filter(function(l){ return !l.doorType; });
-      if (missingDoorType.length){
-        toast("Minden felvett ajtónál válaszd ki az ajtó típust.");
-        document.querySelectorAll(".door-line-card").forEach(function(card){
-          var id = parseInt(card.getAttribute("data-line-id"),10);
-          var line = doorLines.filter(function(l){ return l._id===id; })[0];
-          if (line && !line.doorType) card.querySelector(".dl-door-type").classList.add("field-error-input");
-        });
-        var firstBadCard = document.querySelector(".dl-door-type.field-error-input");
-        if (firstBadCard) firstBadCard.scrollIntoView({ behavior:"smooth", block:"center" });
-        return;
-      }
       doorLines.forEach(function(l){
         items[l.doorType] = (items[l.doorType]||0) + 1;
         if (l.buildingType) items[l.buildingType] = (items[l.buildingType]||0) + 1;
         (l.extras||[]).forEach(function(k){ items[k] = (items[k]||0) + 1; });
       });
-      savedDoorLines = doorLines.map(function(l){ return { doorType:l.doorType, buildingType:l.buildingType||null, extras:(l.extras||[]).slice(), address:l.address||"" }; });
+      savedDoorLines = doorLines.map(function(l){
+        return {
+          lineId: l.lineId, doorType: l.doorType, buildingType: l.buildingType||null, extras: (l.extras||[]).slice(), address: l.address||"",
+          orderRef: l.orderRef||"", status: l.status||null,
+          comment: l.status==="problem" ? (l.comment||"") : "",
+          problemType: l.status==="problem" ? (l.problemType||null) : null,
+          metalCoverSizes: (l.status==="problem" && l.problemType===METAL_COVER_PROBLEM_TYPE) ? l._metalCovers.map(function(c){ return c.excluded ? {excluded:true,a:null,b:null} : {excluded:false,a:c.a,b:c.b}; }) : null
+        };
+      });
     } else {
       document.querySelectorAll(".counter").forEach(function(row){
         var k = row.getAttribute("data-key");
@@ -1583,21 +1804,22 @@ function renderEntry(){
         if (v>0) items[k]=v;
       });
     }
+    var ajtoDoorLinesMode = person.trade==="ajto" && ajtoUseDoorLines;
     var entry = {
       personId: person.id, date: d, trade: person.trade, dayType: dayType,
       items: items,
       doorLines: savedDoorLines,
-      orderRef: (document.getElementById("f-order")||{}).value || "",
+      orderRef: ajtoDoorLinesMode ? "" : ((document.getElementById("f-order")||{}).value || ""),
       assemblyHours: person.trade==="ajto" ? (parseFloat((document.getElementById("f-assembly")||{}).value)||0) : 0,
       bontasFestesOra: person.trade==="kerites" ? (parseFloat((document.getElementById("f-bontas")||{}).value)||0) : 0,
       garanciaEgyebOra: person.trade==="kerites" ? (parseFloat((document.getElementById("f-garancia")||{}).value)||0) : 0,
       workStart: (person.trade==="kerites" || person.trade==="ajto") ? ((document.getElementById("f-work-start")||{}).value || "") : "",
       workEnd: (person.trade==="kerites" || person.trade==="ajto") ? ((document.getElementById("f-work-end")||{}).value || "") : "",
       comment: document.getElementById("f-comment").value,
-      addressStatus: ((person.trade==="kerites" || person.trade==="ajto") && dayType==="work") ? addressStatus : null,
+      addressStatus: ajtoDoorLinesMode ? null : (((person.trade==="kerites" || person.trade==="ajto") && dayType==="work") ? addressStatus : null),
       crewSize: (person.trade==="kerites" && dayType==="work") ? (parseInt((document.getElementById("f-crew-size")||{}).value,10)||null) : null,
-      problemType: ((person.trade==="kerites" || person.trade==="ajto") && dayType==="work" && addressStatus==="problem") ? (document.getElementById("f-problem-type")||{}).value : null,
-      metalCoverSizes: (person.trade==="ajto" && dayType==="work" && addressStatus==="problem" && (document.getElementById("f-problem-type")||{}).value===METAL_COVER_PROBLEM_TYPE) ? metalCovers.map(function(c){ return c.excluded ? {excluded:true,a:null,b:null} : {excluded:false,a:c.a,b:c.b}; }) : null,
+      problemType: ajtoDoorLinesMode ? null : (((person.trade==="kerites" || person.trade==="ajto") && dayType==="work" && addressStatus==="problem") ? (document.getElementById("f-problem-type")||{}).value : null),
+      metalCoverSizes: ajtoDoorLinesMode ? null : ((person.trade==="ajto" && dayType==="work" && addressStatus==="problem" && (document.getElementById("f-problem-type")||{}).value===METAL_COVER_PROBLEM_TYPE) ? metalCovers.map(function(c){ return c.excluded ? {excluded:true,a:null,b:null} : {excluded:false,a:c.a,b:c.b}; }) : null),
       teamColor: (person.trade==="ajto" && dayType==="work") ? ((document.getElementById("f-teamcolor")||{}).value || null) : null,
       submittedAt: new Date().toISOString()
     };
@@ -1612,6 +1834,15 @@ function renderEntry(){
           if (p) ops.push(deleteEntryPhoto(p));
         });
         pendingPhotos.forEach(function(p){ ops.push(uploadEntryPhoto(entryId, p.blob)); });
+        if (ajtoDoorLinesMode){
+          doorLines.forEach(function(l){
+            l._photos.removed.forEach(function(pid){
+              var p = l._photos.existing.filter(function(x){ return String(x.id)===String(pid); })[0];
+              if (p) ops.push(deleteEntryPhoto(p));
+            });
+            l._photos.pending.forEach(function(p){ ops.push(uploadEntryPhoto(entryId, p.blob, l.lineId)); });
+          });
+        }
         Promise.all(ops).then(finishSave).catch(function(){
           toast("Mentve, de a fotók feltöltésekor hiba történt.");
           render();
@@ -1623,7 +1854,8 @@ function renderEntry(){
       if (idx>=0) STATE.entries[idx] = entry; else STATE.entries.push(entry);
       nav.editDate = null;
       saveEntries([entry], function(){
-        if (photosEnabled && (pendingPhotos.length || removedPhotoIds.length)) syncEntryPhotos();
+        var hasLinePhotoChanges = ajtoDoorLinesMode && doorLines.some(function(l){ return l._photos.pending.length || l._photos.removed.length; });
+        if ((photosEnabled && (pendingPhotos.length || removedPhotoIds.length)) || hasLinePhotoChanges) syncEntryPhotos();
         else finishSave();
       });
     }
@@ -1819,7 +2051,7 @@ function computeDashboardStats(month){
   var ajtoProblem = 0;
   STATE.entries.forEach(function(e){
     if (e.trade!=="ajto" || e.dayType!=="work" || e.date.slice(0,7)!==month) return;
-    if (e.addressStatus==="problem") ajtoProblem++;
+    if (ajtoEntryHasProblem(e)) ajtoProblem++;
   });
   return { missing: missing, anomaly: anomaly, openProblemAddr: openProblemAddr, crewMismatches: computeKeritesCrewMismatches(month).length, ajtoProblem: ajtoProblem };
 }
@@ -1950,7 +2182,7 @@ function buildOverviewTab(people, trade, month){
           if (trade==="kerites" && jobStatus==="done" && e.addressStatus!=="done"){ mark='<span style="color:var(--ok)" title="Rögzítve — a cím időközben befejeződött">●</span>'; worked++; }
           else if (trade==="kerites" && e.addressStatus==="problem"){ mark='<span style="color:var(--flag)" title="Probléma merült fel, megakadt a szerelés">✕</span>'; worked++; }
           else if (trade==="kerites" && e.addressStatus==="continue"){ mark='<span style="color:var(--warn)" title="Folytatni kell a címet">↻</span>'; worked++; }
-          else if (trade==="ajto" && e.addressStatus==="problem"){ mark='<span style="color:var(--flag)" title="Probléma merült fel, vissza kell menni">✕</span>'; worked++; ajtoProblem++; }
+          else if (trade==="ajto" && ajtoEntryHasProblem(e)){ mark='<span style="color:var(--flag)" title="Probléma merült fel, vissza kell menni">✕</span>'; worked++; ajtoProblem++; }
           else if (isHourAnomaly(e) && !e.reviewedOk){ mark='<span style="color:var(--flag)" title="Magas teljesítmény — ellenőrizd!">⚠</span>'; worked++; anomaly++; }
           else { mark='<span style="color:var(--ok)" title="Rögzítve">●</span>'; worked++; }
           var mdInfo = multidayInfo[p.id] && multidayInfo[p.id][dateStr];
@@ -2074,14 +2306,14 @@ function buildPersonMonthTab(person, month, locked){
   var groupHeaderRow = "";
   if (isAjto){
     var groups = groupAjtoItems(STATE.catalog.ajto.items);
-    var trailingCount = 6 + 2; // Összerakás + Kezdés + Vég + Állapot + Hiba típusa + Csapatszín + Megjegyzés + Érték
+    var trailingCount = 5 + 2; // Összerakás + Kezdés + Vég + Csapatszín + Probléma + Megjegyzés + Érték
     groupHeaderRow = '<tr><th colspan="2"></th>' + groups.map(function(g){
       return '<th colspan="'+g.items.length+'" style="text-align:center;background:var(--surface-2)">'+escapeHtml(g.label)+'</th>';
     }).join("") + '<th colspan="'+trailingCount+'"></th></tr>';
   }
   var itemHeadCells = items.map(function(it){ return '<th>'+itemColLabel(it)+'</th>'; }).join("");
   var extraHeadCells = isAjto
-    ? '<th>Összerakás<br><span class="muted" style="font-weight:400;font-size:.68rem">óra</span></th><th>Kezdés</th><th>Vég</th><th>Állapot</th><th>Hiba típusa</th><th>Csapatszín</th>'
+    ? '<th>Összerakás<br><span class="muted" style="font-weight:400;font-size:.68rem">óra</span></th><th>Kezdés</th><th>Vég</th><th>Csapatszín</th><th>Probléma</th>'
     : '<th>Kezdés</th><th>Vég</th><th>Bontás/<br>festés</th><th>Garancia/<br>egyéb</th>';
 
   var rows = "";
@@ -2103,19 +2335,11 @@ function buildPersonMonthTab(person, month, locked){
       ? '<td><input type="number" min="0" step="0.1" data-pm-field="assemblyHours" value="'+((e&&e.assemblyHours)||0)+'"'+(locked?" disabled":"")+'></td>' +
         '<td><input type="time" data-pm-field="workStart" value="'+escapeHtml((e&&e.workStart)||"")+'"'+(locked?" disabled":"")+'></td>' +
         '<td><input type="time" data-pm-field="workEnd" value="'+escapeHtml((e&&e.workEnd)||"")+'"'+(locked?" disabled":"")+'></td>' +
-        '<td><select data-pm-field="addressStatus" class="pm-ajto-status"'+(locked?" disabled":"")+'>' +
-          '<option value=""'+(!(e&&e.addressStatus)?" selected":"")+'>—</option>' +
-          '<option value="done"'+(e&&e.addressStatus==="done"?" selected":"")+'>Kész</option>' +
-          '<option value="problem"'+(e&&e.addressStatus==="problem"?" selected":"")+'>Probléma</option>' +
-        '</select></td>' +
-        '<td><select data-pm-field="problemType"'+(locked||!(e&&e.addressStatus==="problem")?" disabled":"")+'>' +
-          '<option value="">— válassz —</option>' +
-          AJTO_PROBLEM_TYPES.map(function(t){ return '<option value="'+escapeHtml(t)+'"'+(e&&e.problemType===t?" selected":"")+'>'+escapeHtml(t)+'</option>'; }).join("") +
-        '</select></td>' +
         '<td><select data-pm-field="teamColor"'+(locked?" disabled":"")+'>' +
           '<option value="">—</option>' +
           AJTO_TEAM_COLORS.map(function(c){ return '<option value="'+escapeHtml(c)+'"'+(e&&e.teamColor===c?" selected":"")+'>'+escapeHtml(c)+'</option>'; }).join("") +
-        '</select></td>'
+        '</select></td>' +
+        '<td class="mono" style="text-align:center">'+(e && ajtoEntryHasProblem(e) ? '<span style="color:var(--flag)" title="Van probléma ezen a napon — részletek a Napló mátrixban">✕</span>' : '')+'</td>'
       : '<td><input type="time" data-pm-field="workStart" value="'+escapeHtml((e&&e.workStart)||"")+'"'+(locked?" disabled":"")+'></td>' +
         '<td><input type="time" data-pm-field="workEnd" value="'+escapeHtml((e&&e.workEnd)||"")+'"'+(locked?" disabled":"")+'></td>' +
         '<td><input type="number" min="0" step="0.1" data-pm-field="bontasFestesOra" value="'+((e&&e.bontasFestesOra)||0)+'"'+(locked?" disabled":"")+'></td>' +
@@ -2154,12 +2378,6 @@ function buildPersonMonthTab(person, month, locked){
 function wirePersonMonthTab(person, month, locked){
   document.getElementById("pm-back").onclick = function(){ nav.adminTab = "overview"; render(); };
   if (locked){ wireNav(); return; }
-  document.querySelectorAll(".pm-ajto-status").forEach(function(sel){
-    sel.onchange = function(){
-      var pTypeSel = sel.closest("tr").querySelector('[data-pm-field="problemType"]');
-      if (pTypeSel) pTypeSel.disabled = sel.value !== "problem";
-    };
-  });
   document.getElementById("pm-save").onclick = function(){
     var trade = person.trade;
     var toSave = [];
@@ -2196,9 +2414,9 @@ function wirePersonMonthTab(person, month, locked){
         workStart: (trade==="kerites" || trade==="ajto") ? (fields.workStart||"") : "",
         workEnd: (trade==="kerites" || trade==="ajto") ? (fields.workEnd||"") : "",
         comment: fields.comment || "",
-        addressStatus: trade==="ajto" ? (fields.addressStatus||null) : (existing ? (existing.addressStatus||null) : null),
+        addressStatus: existing ? (existing.addressStatus||null) : null,
         crewSize: existing ? (existing.crewSize||null) : null,
-        problemType: trade==="ajto" ? (fields.addressStatus==="problem" ? (fields.problemType||null) : null) : (existing ? (existing.problemType||null) : null),
+        problemType: existing ? (existing.problemType||null) : null,
         doorLines: existing ? (existing.doorLines||null) : null,
         metalCoverSizes: existing ? (existing.metalCoverSizes||null) : null,
         teamColor: trade==="ajto" ? (fields.teamColor||null) : null,
@@ -2611,15 +2829,23 @@ function buildAjtoProblemTypeChart(months){
   AJTO_PROBLEM_TYPES.forEach(function(t){ counts[t] = 0; });
   var unspecified = 0;
   STATE.entries.forEach(function(e){
-    if (e.trade!=="ajto" || e.dayType!=="work" || e.addressStatus!=="problem") return;
+    if (e.trade!=="ajto" || e.dayType!=="work") return;
     if (!monthSet[e.date.slice(0,7)]) return;
-    var t = (e.problemType && AJTO_PROBLEM_TYPES.indexOf(e.problemType)>=0) ? e.problemType : "Nincs megadva";
-    if (t==="Nincs megadva") unspecified++; else counts[t]++;
+    if (e.doorLines && e.doorLines.length){
+      e.doorLines.forEach(function(l){
+        if (l.status!=="problem") return;
+        var t = (l.problemType && AJTO_PROBLEM_TYPES.indexOf(l.problemType)>=0) ? l.problemType : "Nincs megadva";
+        if (t==="Nincs megadva") unspecified++; else counts[t]++;
+      });
+    } else if (e.addressStatus==="problem"){
+      var t2 = (e.problemType && AJTO_PROBLEM_TYPES.indexOf(e.problemType)>=0) ? e.problemType : "Nincs megadva";
+      if (t2==="Nincs megadva") unspecified++; else counts[t2]++;
+    }
   });
   var labels = AJTO_PROBLEM_TYPES.slice();
   var values = labels.map(function(t){ return counts[t]; });
   if (unspecified > 0){ labels.push("Nincs megadva"); values.push(unspecified); }
-  return buildBarChart(labels, [{ label:"Napok száma", values:values, colorVar:"--flag" }]);
+  return buildBarChart(labels, [{ label:"Ajtók száma", values:values, colorVar:"--flag" }]);
 }
 
 function computeKeritesJobLifecycles(){
@@ -2969,19 +3195,38 @@ function openEntryModal(personId, date){
     var rows = catalog.items.filter(function(it){ return !it.override && (e.items||{})[it.key]; })
       .map(function(it){ return '<div class="recent-item"><span>'+escapeHtml(it.label)+'</span><span class="mono">'+e.items[it.key]+' db</span></div>'; }).join("");
     var anomaly = isHourAnomaly(e);
+    var ajtoHasLines = person.trade==="ajto" && e.doorLines && e.doorLines.length;
     var addrStatusPill = "";
-    if ((person.trade==="kerites" || person.trade==="ajto") && e.addressStatus){
-      if (e.addressStatus==="done") addrStatusPill = '<p class="pill ok" style="margin-bottom:.6rem">✓ '+(person.trade==="ajto"?"Beépítés kész":"Cím befejezve")+'</p>';
+    if (person.trade==="kerites" && e.addressStatus){
+      if (e.addressStatus==="done") addrStatusPill = '<p class="pill ok" style="margin-bottom:.6rem">✓ Cím befejezve</p>';
       else if (e.addressStatus==="continue") addrStatusPill = '<p class="pill warn" style="margin-bottom:.6rem">↻ Folytatni kell a címet</p>';
-      else if (e.addressStatus==="problem") addrStatusPill = '<p class="pill flag" style="margin-bottom:.6rem">✕ Probléma merült fel'+(person.trade==="ajto"?", vissza kell menni":", megakadt a szerelés")+(e.problemType?' — '+escapeHtml(e.problemType):'')+'</p>';
+      else if (e.addressStatus==="problem") addrStatusPill = '<p class="pill flag" style="margin-bottom:.6rem">✕ Probléma merült fel, megakadt a szerelés'+(e.problemType?' — '+escapeHtml(e.problemType):'')+'</p>';
+    } else if (person.trade==="ajto" && !ajtoHasLines && e.addressStatus){
+      if (e.addressStatus==="done") addrStatusPill = '<p class="pill ok" style="margin-bottom:.6rem">✓ Beépítés kész</p>';
+      else if (e.addressStatus==="problem") addrStatusPill = '<p class="pill flag" style="margin-bottom:.6rem">✕ Probléma merült fel, vissza kell menni'+(e.problemType?' — '+escapeHtml(e.problemType):'')+'</p>';
     }
-    var metalCoverSizesHtml = (e.metalCoverSizes && e.metalCoverSizes.length)
+    var metalCoverSizesHtml = (!ajtoHasLines && e.metalCoverSizes && e.metalCoverSizes.length)
       ? '<div class="recent-item" style="display:block"><strong>Fém takaró méretek (mm)</strong><br>' +
         e.metalCoverSizes.map(function(c,i){ return (c.excluded || c.a==null || c.b==null) ? null : escapeHtml(METAL_COVER_NAMES[i])+': '+c.a+' × '+c.b; }).filter(Boolean).join('<br>') +
         '</div>'
       : '';
+    var ajtoDoorLinesHtml = ajtoHasLines ? e.doorLines.map(function(l){
+      var statusPill = l.status==="done" ? '<span class="pill ok">✓ Kész</span>' : (l.status==="problem" ? '<span class="pill flag">✕ Probléma'+(l.problemType?' — '+escapeHtml(l.problemType):'')+'</span>' : '');
+      var linePhotos = (e.photos||[]).filter(function(p){ return p.doorLineId===l.lineId; });
+      var photosHtml = linePhotos.length ? '<div class="photo-grid" style="margin-top:.4rem">'+linePhotos.map(function(p){ return '<div class="photo-thumb"><img src="'+photoPublicUrl(p.path)+'"></div>'; }).join("")+'</div>' : '';
+      var mcHtml = (l.metalCoverSizes && l.metalCoverSizes.length && l.metalCoverSizes.some(function(c){ return !c.excluded && c.a!=null && c.b!=null; }))
+        ? '<p class="muted" style="margin-top:.3rem">Fém takaró méretek (mm): '+l.metalCoverSizes.map(function(c,i){ return (c.excluded||c.a==null||c.b==null)?null:escapeHtml(METAL_COVER_NAMES[i])+': '+c.a+'×'+c.b; }).filter(Boolean).join(', ')+'</p>'
+        : '';
+      return '<div class="recent-item" style="display:block;margin-bottom:.6rem">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem"><strong>'+escapeHtml(l.address || (l.doorType ? ajtoItemLabel(l.doorType) : "Ajtó"))+'</strong>'+statusPill+'</div>' +
+        (l.orderRef ? '<p class="muted" style="margin:.2rem 0 0">Munka: '+escapeHtml(l.orderRef)+'</p>' : '') +
+        (l.status==="problem" && l.comment ? '<p style="margin-top:.3rem">"'+escapeHtml(l.comment)+'"</p>' : '') +
+        mcHtml + photosHtml +
+        '</div>';
+    }).join("") : "";
     body = addrStatusPill +
       metalCoverSizesHtml +
+      ajtoDoorLinesHtml +
       (anomaly && !e.reviewedOk ? '<p class="pill flag" style="margin-bottom:.6rem">⚠ Magas teljesítmény — ellenőrizd, mielőtt kifizeted!</p>' : '') +
       (anomaly && e.reviewedOk ? '<p class="pill ok" style="margin-bottom:.6rem">✓ Ellenőrizve, rendben találtad</p>' : '') +
       (e.orderRef? '<p class="muted">Munka: '+escapeHtml(e.orderRef)+'</p>' : '') +
