@@ -189,6 +189,8 @@ var APP_CSS = [
 ".stepper .qty{width:3rem;text-align:center;font-weight:700;font-size:1.05rem;border:1px solid var(--line);border-radius:6px;padding:.3rem 0;background:var(--surface);color:var(--ink);font-family:'JetBrains Mono',ui-monospace,monospace;}",
 ".stepper .qty::-webkit-outer-spin-button,.stepper .qty::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}",
 ".stepper .qty{-moz-appearance:textfield;}",
+".dl-qty-box{border:2px solid var(--accent);border-radius:12px;background:var(--surface-2);padding:.8rem .9rem;margin-top:.9rem;}",
+".dl-qty-box>label{color:var(--ink);font-weight:700;}",
 ".door-line-card{position:relative;border:1px solid var(--line);border-radius:12px;padding:.9rem;margin-bottom:.8rem;background:var(--surface-2);}",
 ".door-line-remove{position:absolute;top:.6rem;right:.6rem;width:26px;height:26px;border-radius:50%;border:none;background:rgba(26,22,15,.72);color:#fff;font-size:1rem;line-height:1;cursor:pointer;}",
 ".extras-check-grid{display:flex;flex-wrap:wrap;gap:.5rem .9rem;}",
@@ -1166,11 +1168,17 @@ function renderEntry(){
     var showMc = isProblem && line.problemType === METAL_COVER_PROBLEM_TYPE;
     return '<div class="door-line-card" data-line-id="'+line.lineId+'">' +
       '<button type="button" class="door-line-remove" data-remove-line="'+line.lineId+'" title="Ajtó törlése">×</button>' +
-      '<div class="field"><label>Cím / vevő</label><input type="text" class="dl-address" placeholder="pl. Kossuth u. 12." value="'+escapeHtml(line.address||"")+'"></div>' +
+      '<div class="field dl-address-field"><label>Ügyfél neve <span style="color:var(--flag)">*</span></label><input type="text" class="dl-address" placeholder="pl. Kovács János" value="'+escapeHtml(line.address||"")+'"></div>' +
       '<div class="field dl-orderref-field"><label>Munka / rendelés azonosító <span style="color:var(--flag)">*</span></label><input type="text" class="dl-order" placeholder="pl. 1060/26" value="'+escapeHtml(line.orderRef||"")+'"></div>' +
       '<div class="field dl-doortype-field"><label>Ajtó típus <span style="color:var(--flag)">*</span></label><select class="dl-door-type">'+doorTypeOptionsHtml(line.doorType)+'</select></div>' +
       '<div class="field"><label>Épület típus</label><select class="dl-building-type">'+buildingTypeOptionsHtml(line.buildingType)+'</select></div>' +
       '<div class="field"><label>Kiegészítők</label><div class="extras-check-grid">'+extrasCheckboxesHtml(line.extras||[])+'</div></div>' +
+      '<div class="field dl-qty-field dl-qty-box"><label>Darabszám</label><div class="stepper">' +
+      '<button type="button" class="dl-qty-dec"'+(isProblem?" disabled":"")+'>–</button>' +
+      '<input type="number" inputmode="numeric" class="qty mono dl-qty" min="1" value="'+(line.qty||1)+'"'+(isProblem?" disabled":"")+'>' +
+      '<button type="button" class="dl-qty-inc"'+(isProblem?" disabled":"")+'>+</button></div>' +
+      '<p class="muted" style="font-size:.78rem;margin-top:.3rem">'+(isProblem ? 'Probléma esetén csak 1 db rögzíthető ezen a soron.' : 'Ha több egyforma ajtó épült be ugyanígy (azonos típus, épület, kiegészítők), itt add meg a darabszámot.')+'</p>' +
+      '</div>' +
       '<div class="field dl-status-field" style="margin-top:.9rem"><label>Beépítés állapota <span style="color:var(--flag)">*</span></label><div class="addr-status-group">' +
       '<button type="button" class="dl-status-btn" data-dl-status="done"'+(line.status==="done"?" active":"")+'>Kész</button>' +
       '<button type="button" class="dl-status-btn" data-dl-status="problem"'+(isProblem?" active":"")+'>Probléma merült fel, vissza kell menni</button>' +
@@ -1199,7 +1207,7 @@ function renderEntry(){
       var linePhotos = (existing.photos||[]).filter(function(p){ return p.doorLineId===lineId; });
       doorLines.push({
         lineId: lineId, doorType: l.doorType||"", buildingType: l.buildingType||"", extras: (l.extras||[]).slice(), address: l.address||"",
-        orderRef: l.orderRef||"", status: l.status||null, comment: l.comment||"", problemType: l.problemType||null,
+        orderRef: l.orderRef||"", status: l.status||null, comment: l.comment||"", problemType: l.problemType||null, qty: l.qty||1,
         _photos: { existing: linePhotos, removed: [], pending: [] },
         _metalCovers: (l.metalCoverSizes && l.metalCoverSizes.length===3) ? l.metalCoverSizes.map(function(c){ return { excluded: !!c.excluded, a: (c.a!=null?c.a:null), b: (c.b!=null?c.b:null) }; }) : blankMetalCovers()
       });
@@ -1231,8 +1239,8 @@ function renderEntry(){
   var addrStatusFieldHtml = "";
   if (person.trade === "kerites" || person.trade === "ajto"){
     timeFields += '<div class="row">' +
-      '<div class="field" id="f-work-start-field"><label>Munkakezdés</label><input type="time" id="f-work-start" value="'+escapeHtml(existing.workStart||"")+'"></div>' +
-      '<div class="field" id="f-work-end-field"><label>Munkavég</label><input type="time" id="f-work-end" value="'+escapeHtml(existing.workEnd||"")+'"></div>' +
+      '<div class="field" id="f-work-start-field"><label>Munkakezdés <span style="color:var(--flag)">*</span></label><input type="time" id="f-work-start" value="'+escapeHtml(existing.workStart||"")+'"></div>' +
+      '<div class="field" id="f-work-end-field"><label>Munkavég <span style="color:var(--flag)">*</span></label><input type="time" id="f-work-end" value="'+escapeHtml(existing.workEnd||"")+'"></div>' +
       '</div>';
   }
   var teamColorFieldHtml = "";
@@ -1579,6 +1587,8 @@ function renderEntry(){
   function wireDoorLineCard(line){
     var card = lineCard(line);
     if (!card) return;
+    var dlAddress = card.querySelector(".dl-address");
+    if (dlAddress) dlAddress.oninput = function(){ clearFieldErrorEl(lineField(line,"dl-address-field")); };
     var dlOrder = card.querySelector(".dl-order");
     if (dlOrder) dlOrder.oninput = function(){ clearFieldErrorEl(lineField(line,"dl-orderref-field")); };
     var dlDoorType = card.querySelector(".dl-door-type");
@@ -1588,12 +1598,34 @@ function renderEntry(){
       if (!mcf) return;
       mcf.style.display = (line.status==="problem" && line.problemType===METAL_COVER_PROBLEM_TYPE) ? "" : "none";
     }
+    function syncLineQtyUi(){
+      var isProblem = line.status === "problem";
+      var qtyInp = card.querySelector(".dl-qty");
+      var qtyField = lineField(line,"dl-qty-field");
+      if (isProblem){
+        line.qty = 1;
+        if (qtyInp) qtyInp.value = 1;
+      }
+      if (qtyInp) qtyInp.disabled = isProblem;
+      if (qtyField){
+        qtyField.querySelectorAll(".dl-qty-dec,.dl-qty-inc").forEach(function(b){ b.disabled = isProblem; });
+        var hint = qtyField.querySelector("p");
+        if (hint) hint.textContent = isProblem ? "Probléma esetén csak 1 db rögzíthető ezen a soron." : "Ha több egyforma ajtó épült be ugyanígy (azonos típus, épület, kiegészítők), itt add meg a darabszámot.";
+      }
+    }
     function syncLineStatusUi(){
       card.querySelectorAll(".dl-status-btn").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-dl-status")===line.status); });
       var isProblem = line.status === "problem";
       card.querySelectorAll(".dl-problem-field").forEach(function(f){ f.style.display = isProblem ? "" : "none"; });
       syncLineMetalCoverUi();
+      syncLineQtyUi();
     }
+    var dlQty = card.querySelector(".dl-qty");
+    if (dlQty) dlQty.oninput = function(){ var v = parseInt(dlQty.value,10); line.qty = (v>=1) ? v : 1; };
+    var dlQtyDec = card.querySelector(".dl-qty-dec");
+    if (dlQtyDec) dlQtyDec.onclick = function(){ var v = Math.max(1, (parseInt((dlQty||{}).value,10)||1) - 1); if (dlQty) dlQty.value = v; line.qty = v; };
+    var dlQtyInc = card.querySelector(".dl-qty-inc");
+    if (dlQtyInc) dlQtyInc.onclick = function(){ var v = Math.max(1, (parseInt((dlQty||{}).value,10)||1) + 1); if (dlQty) dlQty.value = v; line.qty = v; };
     card.querySelectorAll(".dl-status-btn").forEach(function(b){
       b.onclick = function(){
         line.status = b.getAttribute("data-dl-status");
@@ -1646,6 +1678,8 @@ function renderEntry(){
       line.extras = Array.prototype.slice.call(card.querySelectorAll("[data-extra]")).filter(function(cb){ return cb.checked; }).map(function(cb){ return cb.getAttribute("data-extra"); });
       line.comment = (card.querySelector(".dl-comment")||{}).value || "";
       line.problemType = (card.querySelector(".dl-problem-type")||{}).value || "";
+      var qtyVal = parseInt((card.querySelector(".dl-qty")||{}).value,10);
+      line.qty = (line.status==="problem") ? 1 : ((qtyVal>=1) ? qtyVal : 1);
     });
   }
   function wireDoorLineRemoveButtons(){
@@ -1673,7 +1707,7 @@ function renderEntry(){
       readDoorLinesFromDom();
       doorLineSeq++;
       var newLineId = "dl-new-"+doorLineSeq+"-"+Date.now().toString(36);
-      doorLines.push({ lineId:newLineId, doorType:"", buildingType:"", extras:[], address:"", orderRef:"", status:null, comment:"", problemType:null, _photos:{existing:[],removed:[],pending:[]}, _metalCovers: blankMetalCovers() });
+      doorLines.push({ lineId:newLineId, doorType:"", buildingType:"", extras:[], address:"", orderRef:"", status:null, comment:"", problemType:null, qty:1, _photos:{existing:[],removed:[],pending:[]}, _metalCovers: blankMetalCovers() });
       rerenderDoorLinesList();
     };
   }
@@ -1758,6 +1792,7 @@ function renderEntry(){
         if (!doorLines.length){ toast("Adj hozzá legalább egy ajtót."); return; }
         var lineErrors = [];
         doorLines.forEach(function(line){
+          clearFieldErrorEl(lineField(line,"dl-address-field"));
           clearFieldErrorEl(lineField(line,"dl-doortype-field"));
           clearFieldErrorEl(lineField(line,"dl-orderref-field"));
           clearFieldErrorEl(lineField(line,"dl-status-field"));
@@ -1768,6 +1803,7 @@ function renderEntry(){
           var dlDoorType = lineCard(line) ? lineCard(line).querySelector(".dl-door-type") : null;
           if (dlDoorType) dlDoorType.classList.remove("field-error-input");
           var bad = false;
+          if (!line.address || !line.address.trim()){ setFieldErrorEl(lineField(line,"dl-address-field"), "Add meg az ügyfél nevét."); bad = true; }
           if (!line.doorType){
             if (dlDoorType) dlDoorType.classList.add("field-error-input");
             setFieldErrorEl(lineField(line,"dl-doortype-field"), "Válaszd ki az ajtó típust.");
@@ -1826,9 +1862,10 @@ function renderEntry(){
       // egész napos javítás: nincs tétel/ajtó rögzítve
     } else if (ajtoUseDoorLines && dayType==="work"){
       doorLines.forEach(function(l){
-        items[l.doorType] = (items[l.doorType]||0) + 1;
-        if (l.buildingType) items[l.buildingType] = (items[l.buildingType]||0) + 1;
-        (l.extras||[]).forEach(function(k){ items[k] = (items[k]||0) + 1; });
+        var q = l.status==="problem" ? 1 : (parseInt(l.qty,10)>=1 ? parseInt(l.qty,10) : 1);
+        items[l.doorType] = (items[l.doorType]||0) + q;
+        if (l.buildingType) items[l.buildingType] = (items[l.buildingType]||0) + q;
+        (l.extras||[]).forEach(function(k){ items[k] = (items[k]||0) + q; });
       });
       savedDoorLines = doorLines.map(function(l){
         return {
@@ -1836,6 +1873,7 @@ function renderEntry(){
           orderRef: l.orderRef||"", status: l.status||null,
           comment: l.status==="problem" ? (l.comment||"") : "",
           problemType: l.status==="problem" ? (l.problemType||null) : null,
+          qty: l.status==="problem" ? 1 : (parseInt(l.qty,10)>=1 ? parseInt(l.qty,10) : 1),
           metalCoverSizes: (l.status==="problem" && l.problemType===METAL_COVER_PROBLEM_TYPE) ? l._metalCovers.map(function(c){ return c.excluded ? {excluded:true,a:null,b:null} : {excluded:false,a:c.a,b:c.b}; }) : null
         };
       });
@@ -3275,7 +3313,7 @@ function openEntryModal(personId, date){
         ? '<p class="muted" style="margin-top:.3rem">Fém takaró méretek (mm): '+l.metalCoverSizes.map(function(c,i){ return (c.excluded||c.a==null||c.b==null)?null:escapeHtml(METAL_COVER_NAMES[i])+': '+c.a+'×'+c.b; }).filter(Boolean).join(', ')+'</p>'
         : '';
       return '<div class="recent-item" style="display:block;margin-bottom:.6rem">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem"><strong>'+escapeHtml(l.address || (l.doorType ? ajtoItemLabel(l.doorType) : "Ajtó"))+'</strong>'+statusPill+'</div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem"><strong>'+escapeHtml(l.address || (l.doorType ? ajtoItemLabel(l.doorType) : "Ajtó"))+(l.qty>1?' × '+l.qty:'')+'</strong>'+statusPill+'</div>' +
         (l.orderRef ? '<p class="muted" style="margin:.2rem 0 0">Munka: '+escapeHtml(l.orderRef)+'</p>' : '') +
         (l.status==="problem" && l.comment ? '<p style="margin-top:.3rem">"'+escapeHtml(l.comment)+'"</p>' : '') +
         mcHtml + photosHtml +
