@@ -811,26 +811,31 @@ function loadState(afterOk){
     sb("settings?id=eq.1&select=*"),
     sb("daily_pay_rates?select=*"),
     sb("people?select=*"),
-    sb("ajto_prices?select=*"),
+    sb("ajto_role_prices?select=*"),
     sb("catalog_items?select=*&order=sort_order"),
     sb("entries?deleted_at=is.null&select=*,entry_items(item_key,qty)"),
     sb("extras?deleted_at=is.null&select=*"),
     sb("month_locks?select=*"),
     sb("entry_photos?select=*")
   ]).then(function(r){
-    var settings = (r[0] && r[0][0]) || { admin_pin:"1234", overtime_rate_vezeto:2700, overtime_rate_seged:2100, repair_rate_vezeto:2700, repair_rate_seged:2100, kerites_utazas_hours:0, kerites_jarulekos_hours:0, kerites_job_level_pay:false, kerites_crew_adjust:true, ajto_hide_daily_pay:false };
+    var settings = (r[0] && r[0][0]) || { admin_pin:"1234", overtime_rate_vezeto:2700, overtime_rate_seged:2100, repair_rate_vezeto:2700, repair_rate_seged:2100, travel_rate_vezeto:9000, travel_rate_seged:8100, kerites_utazas_hours:0, kerites_jarulekos_hours:0, kerites_job_level_pay:false, kerites_crew_adjust:true, ajto_hide_daily_pay:false };
     var dailyPay = { vacation:{vezeto:0,seged:0}, sick:{vezeto:0,seged:0} };
     (r[1]||[]).forEach(function(row){ if (dailyPay[row.day_type]) dailyPay[row.day_type][row.role] = row.amount; });
 
-    var pricesByPerson = {};
+    var rolePrices = { vezeto:{}, seged:{} };
     (r[3]||[]).forEach(function(row){
-      if (!pricesByPerson[row.person_id]) pricesByPerson[row.person_id] = {};
-      pricesByPerson[row.person_id][row.item_key] = row.price;
+      if (!rolePrices[row.role]) rolePrices[row.role] = {};
+      rolePrices[row.role][row.item_key] = row.price;
     });
+    var travelRates = { vezeto: settings.travel_rate_vezeto||0, seged: settings.travel_rate_seged||0 };
     var people = (r[2]||[]).map(function(p){
       var out = { id:p.id, name:p.name, trade:p.trade, role:keyToRole(p.role), active:p.active };
       if (p.pin) out.pin = p.pin;
-      if (p.trade === "ajto"){ out.travelFeePerDay = p.travel_fee_per_day||0; out.prices = pricesByPerson[p.id]||{}; }
+      if (p.trade === "ajto"){
+        var rk = roleToKey(out.role);
+        out.travelFeePerDay = rk ? (travelRates[rk]||0) : 0;
+        out.prices = rk ? rolePrices[rk] : {};
+      }
       else { out.hourlyRate = p.hourly_rate||0; }
       return out;
     });
@@ -845,7 +850,7 @@ function loadState(afterOk){
       }
     });
     var catalog = {
-      ajto: { overtimeRates: { vezeto: settings.overtime_rate_vezeto||0, seged: settings.overtime_rate_seged||0 }, repairRates: { vezeto: settings.repair_rate_vezeto||0, seged: settings.repair_rate_seged||0 }, items: ajtoItems },
+      ajto: { overtimeRates: { vezeto: settings.overtime_rate_vezeto||0, seged: settings.overtime_rate_seged||0 }, repairRates: { vezeto: settings.repair_rate_vezeto||0, seged: settings.repair_rate_seged||0 }, travelRates: travelRates, rolePrices: rolePrices, items: ajtoItems },
       kerites: { fixedDailyHours: { utazas: settings.kerites_utazas_hours||0, jarulekos: settings.kerites_jarulekos_hours||0 }, items: keritesItems }
     };
 
@@ -3040,7 +3045,7 @@ function buildPeopleTab(people, trade){
           '<option value="Segéd szerelő"'+(p.role==="Segéd szerelő"?" selected":"")+'>Segéd szerelő</option>' +
         '</select>') +
       (trade==="ajto"
-        ? '<input type="number" data-p-travel="'+p.id+'" value="'+(p.travelFeePerDay||0)+'" placeholder="útiköltség/nap">'
+        ? '<input type="text" disabled title="Az útiköltség szerepkör szerint fix, az Árazás — ajtó fülön állítható" value="'+(p.role?fmtFt(STATE.catalog.ajto.travelRates[roleToKey(p.role)]||0)+"/nap":"—")+'">'
         : '<input type="number" data-p-rate="'+p.id+'" value="'+(p.hourlyRate||0)+'" placeholder="Ft/óra">') +
       '<label style="display:flex;align-items:center;gap:.3rem;text-transform:none;font-weight:500;"><input type="checkbox" style="width:auto" data-p-active="'+p.id+'" '+(p.active!==false?"checked":"")+'>aktív</label>' +
       '<button class="small-btn" data-p-resetpin="'+p.id+'">'+(p.pin?"Kód törlése":"Nincs még kódja")+'</button>' +
@@ -3056,35 +3061,27 @@ function wirePeopleTab(people, trade){
     var id = name.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");
     var np = { id:id, name:name, trade:trade, role:"", active:true };
     var dbRow = { id:id, name:name, trade:trade, role:null, active:true };
-    if (trade==="ajto"){
-      np.travelFeePerDay=8000; np.prices={};
-      STATE.catalog.ajto.items.forEach(function(it){ np.prices[it.key]=0; });
-      dbRow.travel_fee_per_day = 8000;
-    } else { np.hourlyRate=2200; dbRow.hourly_rate = 2200; }
+    if (trade==="ajto"){ np.travelFeePerDay=0; np.prices={}; }
+    else { np.hourlyRate=2200; dbRow.hourly_rate = 2200; }
     STATE.people.push(np);
-    sb("people", { method:"POST", body:dbRow, prefer:"return=minimal" }).then(function(){
-      if (trade==="ajto"){
-        var priceRows = STATE.catalog.ajto.items.map(function(it){ return { person_id:id, item_key:it.key, price:0 }; });
-        return sb("ajto_prices", { method:"POST", body:priceRows, prefer:"return=minimal" });
-      }
-    }).then(function(){ render(); }).catch(sbFail);
+    sb("people", { method:"POST", body:dbRow, prefer:"return=minimal" })
+      .then(function(){ render(); }).catch(sbFail);
   };
   function collectPeopleEdits(){
     people.forEach(function(p){
       var n = document.querySelector('[data-p-name="'+p.id+'"]'); if (n) p.name = n.value;
       var r = document.querySelector('[data-p-role="'+p.id+'"]'); if (r) p.role = r.value;
-      var t = document.querySelector('[data-p-travel="'+p.id+'"]'); if (t) p.travelFeePerDay = parseFloat(t.value)||0;
       var hr = document.querySelector('[data-p-rate="'+p.id+'"]'); if (hr) p.hourlyRate = parseFloat(hr.value)||0;
       var a = document.querySelector('[data-p-active="'+p.id+'"]'); if (a) p.active = a.checked;
     });
   }
-  document.querySelectorAll('[data-p-name],[data-p-travel],[data-p-rate]').forEach(function(inp){
+  document.querySelectorAll('[data-p-name],[data-p-rate]').forEach(function(inp){
     inp.onblur = function(){
       collectPeopleEdits();
-      var id = inp.getAttribute("data-p-name")||inp.getAttribute("data-p-travel")||inp.getAttribute("data-p-rate");
+      var id = inp.getAttribute("data-p-name")||inp.getAttribute("data-p-rate");
       var p = getPerson(id);
       var fields = { name: p.name };
-      if (trade==="ajto") fields.travel_fee_per_day = p.travelFeePerDay; else fields.hourly_rate = p.hourlyRate;
+      if (trade!=="ajto") fields.hourly_rate = p.hourlyRate;
       sb("people?id=eq."+encodeURIComponent(id), { method:"PATCH", body:fields, prefer:"return=minimal" })
         .then(function(){ render(); }).catch(sbFail);
     };
@@ -3094,6 +3091,11 @@ function wirePeopleTab(people, trade){
       collectPeopleEdits();
       var id = inp.getAttribute("data-p-active")||inp.getAttribute("data-p-role");
       var p = getPerson(id);
+      if (trade==="ajto"){
+        var rk = roleToKey(p.role);
+        p.prices = rk ? STATE.catalog.ajto.rolePrices[rk] : {};
+        p.travelFeePerDay = rk ? (STATE.catalog.ajto.travelRates[rk]||0) : 0;
+      }
       sb("people?id=eq."+encodeURIComponent(id), { method:"PATCH", body:{active:p.active, role:roleToKey(p.role)}, prefer:"return=minimal" })
         .then(function(){ render(); }).catch(sbFail);
     };
@@ -3112,17 +3114,17 @@ function wirePeopleTab(people, trade){
 
 function buildPricingTab(people, trade){
   var priceCols = trade==="ajto"
-    ? people.map(function(p){ return '<th>'+escapeHtml(p.name.split(" ")[0])+' (Ft)</th>'; }).join("")
+    ? '<th>Vezető szerelő (Ft)</th><th>Segéd szerelő (Ft)</th>'
     : '<th>Óra/db</th>';
   function priceRow(it){
     var cells = trade==="ajto"
-      ? people.map(function(p){ return '<td><input type="number" step="0.01" data-price-person="'+p.id+'" data-price-key="'+it.key+'" value="'+(p.prices[it.key]||0)+'"></td>'; }).join("")
+      ? ["vezeto","seged"].map(function(rk){ return '<td><input type="number" step="0.01" data-price-role="'+rk+'" data-price-key="'+it.key+'" value="'+(STATE.catalog.ajto.rolePrices[rk][it.key]||0)+'"></td>'; }).join("")
       : '<td><input type="number" step="0.001" data-hours-key="'+it.key+'" value="'+it.hoursPerUnit+'"></td>';
     return '<tr><td>'+escapeHtml(it.label)+'</td>'+cells+'</tr>';
   }
   var priceRows;
   if (trade === "ajto"){
-    var colspan = 1 + people.length;
+    var colspan = 3;
     priceRows = groupAjtoItems(STATE.catalog.ajto.items).map(function(grp){
       return '<tr><td colspan="'+colspan+'" style="background:var(--surface-2);font-weight:700;font-size:.78rem;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted)">'+escapeHtml(grp.label)+'</td></tr>' +
         grp.items.map(priceRow).join("");
@@ -3131,7 +3133,10 @@ function buildPricingTab(people, trade){
     priceRows = STATE.catalog[trade].items.map(priceRow).join("");
   }
   var extraRate = trade==="ajto"
-    ? '<div class="row" style="max-width:420px;margin-top:1rem"><div class="field"><label>Túlóradíj — vezető szerelő (Ft/óra)</label><input type="number" id="a-overtime-vezeto" value="'+STATE.catalog.ajto.overtimeRates.vezeto+'"></div>' +
+    ? '<p class="muted" style="font-size:.8rem;margin-top:.6rem">Ez az árazás minden vezető szerelőre, illetve minden segédszerelőre egységesen vonatkozik — nincs egyéni eltérés.</p>' +
+      '<div class="row" style="max-width:420px;margin-top:1rem"><div class="field"><label>Útiköltség — vezető szerelő (Ft/nap)</label><input type="number" id="a-travel-vezeto" value="'+STATE.catalog.ajto.travelRates.vezeto+'"></div>' +
+      '<div class="field"><label>Útiköltség — segéd szerelő (Ft/nap)</label><input type="number" id="a-travel-seged" value="'+STATE.catalog.ajto.travelRates.seged+'"></div></div>' +
+      '<div class="row" style="max-width:420px;margin-top:1rem"><div class="field"><label>Túlóradíj — vezető szerelő (Ft/óra)</label><input type="number" id="a-overtime-vezeto" value="'+STATE.catalog.ajto.overtimeRates.vezeto+'"></div>' +
       '<div class="field"><label>Túlóradíj — segéd szerelő (Ft/óra)</label><input type="number" id="a-overtime-seged" value="'+STATE.catalog.ajto.overtimeRates.seged+'"></div></div>' +
       '<p class="muted" style="font-size:.8rem;margin-top:.4rem">A napi 9 óra fölötti ledolgozott idő (Munkakezdés–Munkavég alapján, tört órával) után jár, a szerelő szerepköre szerinti díjjal.</p>' +
       '<div class="row" style="max-width:420px;margin-top:1rem"><div class="field"><label>Javítási órabér — vezető szerelő (Ft/óra)</label><input type="number" id="a-repair-vezeto" value="'+STATE.catalog.ajto.repairRates.vezeto+'"></div>' +
@@ -3147,20 +3152,27 @@ function wirePricingTab(people, trade){
   document.getElementById("a-save-pricing").onclick = function(){
     if (trade==="ajto"){
       var priceRows = [];
-      document.querySelectorAll('[data-price-person]').forEach(function(inp){
-        var p = getPerson(inp.getAttribute("data-price-person"));
+      document.querySelectorAll('[data-price-role]').forEach(function(inp){
+        var rk = inp.getAttribute("data-price-role");
         var key = inp.getAttribute("data-price-key");
         var val = parseFloat(inp.value)||0;
-        if (p) p.prices[key] = val;
-        priceRows.push({ person_id: (p?p.id:inp.getAttribute("data-price-person")), item_key:key, price:val });
+        STATE.catalog.ajto.rolePrices[rk][key] = val;
+        priceRows.push({ role:rk, item_key:key, price:val });
       });
+      STATE.catalog.ajto.travelRates.vezeto = parseFloat(document.getElementById("a-travel-vezeto").value)||0;
+      STATE.catalog.ajto.travelRates.seged = parseFloat(document.getElementById("a-travel-seged").value)||0;
       STATE.catalog.ajto.overtimeRates.vezeto = parseFloat(document.getElementById("a-overtime-vezeto").value)||0;
       STATE.catalog.ajto.overtimeRates.seged = parseFloat(document.getElementById("a-overtime-seged").value)||0;
       STATE.catalog.ajto.repairRates.vezeto = parseFloat(document.getElementById("a-repair-vezeto").value)||0;
       STATE.catalog.ajto.repairRates.seged = parseFloat(document.getElementById("a-repair-seged").value)||0;
+      STATE.people.forEach(function(p){
+        if (p.trade!=="ajto") return;
+        var rk = roleToKey(p.role);
+        p.travelFeePerDay = rk ? (STATE.catalog.ajto.travelRates[rk]||0) : 0;
+      });
       Promise.all([
-        sbUpsert("ajto_prices", priceRows, "person_id,item_key"),
-        sb("settings?id=eq.1", { method:"PATCH", body:{overtime_rate_vezeto: STATE.catalog.ajto.overtimeRates.vezeto, overtime_rate_seged: STATE.catalog.ajto.overtimeRates.seged, repair_rate_vezeto: STATE.catalog.ajto.repairRates.vezeto, repair_rate_seged: STATE.catalog.ajto.repairRates.seged}, prefer:"return=minimal" })
+        sbUpsert("ajto_role_prices", priceRows, "role,item_key"),
+        sb("settings?id=eq.1", { method:"PATCH", body:{travel_rate_vezeto: STATE.catalog.ajto.travelRates.vezeto, travel_rate_seged: STATE.catalog.ajto.travelRates.seged, overtime_rate_vezeto: STATE.catalog.ajto.overtimeRates.vezeto, overtime_rate_seged: STATE.catalog.ajto.overtimeRates.seged, repair_rate_vezeto: STATE.catalog.ajto.repairRates.vezeto, repair_rate_seged: STATE.catalog.ajto.repairRates.seged}, prefer:"return=minimal" })
       ]).then(function(){ toast("Árazás mentve."); render(); }).catch(sbFail);
     } else {
       var hourRows = [];
