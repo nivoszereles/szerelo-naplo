@@ -172,6 +172,7 @@ var APP_CSS = [
 ".dl-status-btn{flex:1 1 auto;min-width:104px;padding:.65rem .5rem;border-radius:10px;border:2px solid #000;background:var(--surface-2);font-weight:600;font-size:.8rem;cursor:pointer;color:var(--ink-muted);font-family:'Public Sans',sans-serif;line-height:1.25;}",
 ".dl-status-btn.active[data-dl-status=done]{background:var(--ok);color:#fff;border-color:var(--ok);}",
 ".dl-status-btn.active[data-dl-status=problem]{background:var(--flag);color:#fff;border-color:var(--flag);}",
+".dl-status-btn.active[data-dl-status=failed]{background:var(--warn);color:#fff;border-color:var(--warn);}",
 ".photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:.5rem;margin-top:.5rem;}",
 ".photo-thumb{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:var(--surface-2);}",
 ".photo-thumb img{width:100%;height:100%;object-fit:cover;display:block;}",
@@ -493,6 +494,9 @@ function ajtoEntryHasProblem(e){
   if (e.doorLines && e.doorLines.length) return e.doorLines.some(function(l){ return l.status==="problem"; });
   return e.addressStatus==="problem";
 }
+function ajtoEntryHasFailed(e){
+  return !!(e.doorLines && e.doorLines.length && e.doorLines.some(function(l){ return l.status==="failed"; }));
+}
 function keritesHourBreakdown(entry){
   var perf, overrideItem = keritesOverrideItem(entry);
   if (overrideItem){
@@ -572,6 +576,7 @@ function calcEntryValue(entry, person){
       if (q>0) anyQty = true;
       itemsTotal += q * (person.prices[items[i].key]||0);
     }
+    if (!anyQty && entry.doorLines && entry.doorLines.length) anyQty = true;
     var travel = anyQty ? (person.travelFeePerDay||0) : 0;
     var overtime = ajtoOvertimePay(entry, person);
     return itemsTotal + travel + overtime;
@@ -752,6 +757,17 @@ function sbUpsert(table, rows, conflictCols){
     method: "POST", body: rows, prefer: "resolution=merge-duplicates,return=minimal"
   });
 }
+function notifyFailedInstallations(lines, person, dateStr){
+  fetch(SUPABASE_URL + "/functions/v1/send-failed-install-email", {
+    method: "POST",
+    headers: { "Content-Type":"application/json", apikey: SUPABASE_KEY, Authorization: "Bearer " + SUPABASE_KEY },
+    body: JSON.stringify({
+      installerName: person.name,
+      date: dateStr,
+      lines: lines.map(function(l){ return { address:l.address||"", doorType: ajtoItemLabel(l.doorType)||l.doorType||"", orderRef:l.orderRef||"", comment:l.comment||"" }; })
+    })
+  }).catch(function(){});
+}
 function sbFail(){ toast("Nincs internet, vagy a szerver nem elérhető — próbáld újra."); }
 function photoPublicUrl(path){
   return SUPABASE_URL + "/storage/v1/object/public/entry-photos/" + path;
@@ -818,7 +834,7 @@ function loadState(afterOk){
     sb("month_locks?select=*"),
     sb("entry_photos?select=*")
   ]).then(function(r){
-    var settings = (r[0] && r[0][0]) || { admin_pin:"1234", overtime_rate_vezeto:2700, overtime_rate_seged:2100, repair_rate_vezeto:2700, repair_rate_seged:2100, travel_rate_vezeto:9000, travel_rate_seged:8100, kerites_utazas_hours:0, kerites_jarulekos_hours:0, kerites_job_level_pay:false, kerites_crew_adjust:true, ajto_hide_daily_pay:false };
+    var settings = (r[0] && r[0][0]) || { admin_pin:"1234", overtime_rate_vezeto:2700, overtime_rate_seged:2100, repair_rate_vezeto:2700, repair_rate_seged:2100, travel_rate_vezeto:9000, travel_rate_seged:8100, kerites_utazas_hours:0, kerites_jarulekos_hours:0, kerites_job_level_pay:false, kerites_crew_adjust:true, ajto_hide_daily_pay:false, failed_install_emails:"" };
     var dailyPay = { vacation:{vezeto:0,seged:0}, sick:{vezeto:0,seged:0} };
     (r[1]||[]).forEach(function(row){ if (dailyPay[row.day_type]) dailyPay[row.day_type][row.role] = row.amount; });
 
@@ -878,7 +894,7 @@ function loadState(afterOk){
     var extras = (r[6]||[]).map(function(row){ return { id:row.id, personId:row.person_id, month:row.month, label:row.label||"", amount:row.amount||0 }; });
     var monthLocks = (r[7]||[]).map(function(row){ return { trade:row.trade, month:row.month, locked:row.locked }; });
 
-    STATE = { adminPin: settings.admin_pin, dailyPay: dailyPay, people: people, catalog: catalog, entries: entries, extras: extras, monthLocks: monthLocks, keritesJobLevelPay: !!settings.kerites_job_level_pay, keritesCrewAdjust: settings.kerites_crew_adjust!==false, ajtoHideDailyPay: !!settings.ajto_hide_daily_pay };
+    STATE = { adminPin: settings.admin_pin, dailyPay: dailyPay, people: people, catalog: catalog, entries: entries, extras: extras, monthLocks: monthLocks, keritesJobLevelPay: !!settings.kerites_job_level_pay, keritesCrewAdjust: settings.kerites_crew_adjust!==false, ajtoHideDailyPay: !!settings.ajto_hide_daily_pay, failedInstallEmails: settings.failed_install_emails||"" };
     if (afterOk) afterOk();
   }).catch(function(err){
     console.error(err);
@@ -1170,6 +1186,8 @@ function renderEntry(){
   }
   function doorLineCardHtml(line){
     var isProblem = line.status === "problem";
+    var isFailed = line.status === "failed";
+    var isLocked = isProblem || isFailed;
     var showMc = isProblem && line.problemType === METAL_COVER_PROBLEM_TYPE;
     return '<div class="door-line-card" data-line-id="'+line.lineId+'">' +
       '<button type="button" class="door-line-remove" data-remove-line="'+line.lineId+'" title="Ajtó törlése">×</button>' +
@@ -1179,16 +1197,17 @@ function renderEntry(){
       '<div class="field"><label>Épület típus</label><select class="dl-building-type">'+buildingTypeOptionsHtml(line.buildingType)+'</select></div>' +
       '<div class="field"><label>Kiegészítők</label><div class="extras-check-grid">'+extrasCheckboxesHtml(line.extras||[])+'</div></div>' +
       '<div class="field dl-qty-field dl-qty-box"><label>Darabszám</label><div class="stepper">' +
-      '<button type="button" class="dl-qty-dec"'+(isProblem?" disabled":"")+'>–</button>' +
-      '<input type="number" inputmode="numeric" class="qty mono dl-qty" min="1" value="'+(line.qty||1)+'"'+(isProblem?" disabled":"")+'>' +
-      '<button type="button" class="dl-qty-inc"'+(isProblem?" disabled":"")+'>+</button></div>' +
-      '<p class="muted" style="font-size:.78rem;margin-top:.3rem">'+(isProblem ? 'Probléma esetén csak 1 db rögzíthető ezen a soron.' : 'Ha több egyforma ajtó épült be ugyanígy (azonos típus, épület, kiegészítők), itt add meg a darabszámot.')+'</p>' +
+      '<button type="button" class="dl-qty-dec"'+(isLocked?" disabled":"")+'>–</button>' +
+      '<input type="number" inputmode="numeric" class="qty mono dl-qty" min="1" value="'+(line.qty||1)+'"'+(isLocked?" disabled":"")+'>' +
+      '<button type="button" class="dl-qty-inc"'+(isLocked?" disabled":"")+'>+</button></div>' +
+      '<p class="muted" style="font-size:.78rem;margin-top:.3rem">'+(isLocked ? 'Probléma vagy meghiúsulás esetén csak 1 db rögzíthető ezen a soron.' : 'Ha több egyforma ajtó épült be ugyanígy (azonos típus, épület, kiegészítők), itt add meg a darabszámot.')+'</p>' +
       '</div>' +
       '<div class="field dl-status-field" style="margin-top:.9rem"><label>Beépítés állapota <span style="color:var(--flag)">*</span></label><div class="addr-status-group">' +
       '<button type="button" class="dl-status-btn" data-dl-status="done"'+(line.status==="done"?" active":"")+'>Kész</button>' +
       '<button type="button" class="dl-status-btn" data-dl-status="problem"'+(isProblem?" active":"")+'>Probléma merült fel, vissza kell menni</button>' +
+      '<button type="button" class="dl-status-btn" data-dl-status="failed"'+(isFailed?" active":"")+'>Meghiúsult beépítés</button>' +
       '</div></div>' +
-      '<div class="field dl-problem-field dl-comment-field" style="margin-top:.9rem;'+(isProblem?'':'display:none')+'"><label>Hiba leírása <span style="color:var(--flag)">*</span></label><textarea class="dl-comment" placeholder="Írd le, milyen probléma merült fel...">'+escapeHtml(line.comment||"")+'</textarea></div>' +
+      '<div class="field dl-comment-field" style="margin-top:.9rem;'+(isLocked?'':'display:none')+'"><label>'+(isFailed?'Meghiúsulás oka':'Hiba leírása')+' <span style="color:var(--flag)">*</span></label><textarea class="dl-comment" placeholder="'+(isFailed?'Írd le, miért hiúsult meg a beépítés...':'Írd le, milyen probléma merült fel...')+'">'+escapeHtml(line.comment||"")+'</textarea></div>' +
       '<div class="field dl-problem-field dl-problemtype-field" style="margin-top:.9rem;'+(isProblem?'':'display:none')+'"><label>Hiba típusa <span style="color:var(--flag)">*</span></label>' +
       '<select class="dl-problem-type"><option value=""'+(!line.problemType?" selected":"")+'>— válassz —</option>' +
       AJTO_PROBLEM_TYPES.map(function(t){ return '<option value="'+escapeHtml(t)+'"'+(line.problemType===t?" selected":"")+'>'+escapeHtml(t)+'</option>'; }).join("") +
@@ -1604,24 +1623,33 @@ function renderEntry(){
       mcf.style.display = (line.status==="problem" && line.problemType===METAL_COVER_PROBLEM_TYPE) ? "" : "none";
     }
     function syncLineQtyUi(){
-      var isProblem = line.status === "problem";
+      var isLocked = line.status === "problem" || line.status === "failed";
       var qtyInp = card.querySelector(".dl-qty");
       var qtyField = lineField(line,"dl-qty-field");
-      if (isProblem){
+      if (isLocked){
         line.qty = 1;
         if (qtyInp) qtyInp.value = 1;
       }
-      if (qtyInp) qtyInp.disabled = isProblem;
+      if (qtyInp) qtyInp.disabled = isLocked;
       if (qtyField){
-        qtyField.querySelectorAll(".dl-qty-dec,.dl-qty-inc").forEach(function(b){ b.disabled = isProblem; });
+        qtyField.querySelectorAll(".dl-qty-dec,.dl-qty-inc").forEach(function(b){ b.disabled = isLocked; });
         var hint = qtyField.querySelector("p");
-        if (hint) hint.textContent = isProblem ? "Probléma esetén csak 1 db rögzíthető ezen a soron." : "Ha több egyforma ajtó épült be ugyanígy (azonos típus, épület, kiegészítők), itt add meg a darabszámot.";
+        if (hint) hint.textContent = isLocked ? "Probléma vagy meghiúsulás esetén csak 1 db rögzíthető ezen a soron." : "Ha több egyforma ajtó épült be ugyanígy (azonos típus, épület, kiegészítők), itt add meg a darabszámot.";
       }
     }
     function syncLineStatusUi(){
       card.querySelectorAll(".dl-status-btn").forEach(function(b){ b.classList.toggle("active", b.getAttribute("data-dl-status")===line.status); });
       var isProblem = line.status === "problem";
+      var isFailed = line.status === "failed";
       card.querySelectorAll(".dl-problem-field").forEach(function(f){ f.style.display = isProblem ? "" : "none"; });
+      var reasonField = lineField(line,"dl-comment-field");
+      if (reasonField){
+        reasonField.style.display = (isProblem||isFailed) ? "" : "none";
+        var lbl = reasonField.querySelector("label");
+        if (lbl) lbl.innerHTML = (isFailed ? "Meghiúsulás oka" : "Hiba leírása") + ' <span style="color:var(--flag)">*</span>';
+        var ta = reasonField.querySelector("textarea");
+        if (ta) ta.placeholder = isFailed ? "Írd le, miért hiúsult meg a beépítés..." : "Írd le, milyen probléma merült fel...";
+      }
       syncLineMetalCoverUi();
       syncLineQtyUi();
     }
@@ -1637,10 +1665,12 @@ function renderEntry(){
         syncLineStatusUi();
         clearFieldErrorEl(lineField(line,"dl-status-field"));
         if (line.status !== "problem"){
-          clearFieldErrorEl(lineField(line,"dl-comment-field"));
           clearFieldErrorEl(lineField(line,"dl-problemtype-field"));
           clearFieldErrorEl(lineField(line,"dl-photos-field"));
           clearFieldErrorEl(lineField(line,"dl-metalcovers-field"));
+        }
+        if (line.status === "done"){
+          clearFieldErrorEl(lineField(line,"dl-comment-field"));
         }
       };
     });
@@ -1684,7 +1714,7 @@ function renderEntry(){
       line.comment = (card.querySelector(".dl-comment")||{}).value || "";
       line.problemType = (card.querySelector(".dl-problem-type")||{}).value || "";
       var qtyVal = parseInt((card.querySelector(".dl-qty")||{}).value,10);
-      line.qty = (line.status==="problem") ? 1 : ((qtyVal>=1) ? qtyVal : 1);
+      line.qty = (line.status==="problem"||line.status==="failed") ? 1 : ((qtyVal>=1) ? qtyVal : 1);
     });
   }
   function wireDoorLineRemoveButtons(){
@@ -1827,6 +1857,8 @@ function renderEntry(){
               var mcAllExcluded2 = mc.every(function(c){ return c.excluded; });
               if (mcIncomplete2 || mcAllExcluded2){ setFieldErrorEl(lineField(line,"dl-metalcovers-field"), "Minden takarónál add meg mindkét méretet, vagy X-eld ki, ha nem az hibás."); bad = true; }
             }
+          } else if (line.status === "failed"){
+            if (!line.comment || !line.comment.trim()){ setFieldErrorEl(lineField(line,"dl-comment-field"), "Írd le, miért hiúsult meg a beépítés."); bad = true; }
           }
           if (bad) lineErrors.push(line);
         });
@@ -1867,6 +1899,7 @@ function renderEntry(){
       // egész napos javítás: nincs tétel/ajtó rögzítve
     } else if (ajtoUseDoorLines && dayType==="work"){
       doorLines.forEach(function(l){
+        if (l.status==="failed") return;
         var q = l.status==="problem" ? 1 : (parseInt(l.qty,10)>=1 ? parseInt(l.qty,10) : 1);
         items[l.doorType] = (items[l.doorType]||0) + q;
         if (l.buildingType) items[l.buildingType] = (items[l.buildingType]||0) + q;
@@ -1876,9 +1909,9 @@ function renderEntry(){
         return {
           lineId: l.lineId, doorType: l.doorType, buildingType: l.buildingType||null, extras: (l.extras||[]).slice(), address: l.address||"",
           orderRef: l.orderRef||"", status: l.status||null,
-          comment: l.status==="problem" ? (l.comment||"") : "",
+          comment: (l.status==="problem"||l.status==="failed") ? (l.comment||"") : "",
           problemType: l.status==="problem" ? (l.problemType||null) : null,
-          qty: l.status==="problem" ? 1 : (parseInt(l.qty,10)>=1 ? parseInt(l.qty,10) : 1),
+          qty: (l.status==="problem"||l.status==="failed") ? 1 : (parseInt(l.qty,10)>=1 ? parseInt(l.qty,10) : 1),
           metalCoverSizes: (l.status==="problem" && l.problemType===METAL_COVER_PROBLEM_TYPE) ? l._metalCovers.map(function(c){ return c.excluded ? {excluded:true,a:null,b:null} : {excluded:false,a:c.a,b:c.b}; }) : null
         };
       });
@@ -1940,8 +1973,12 @@ function renderEntry(){
       var idx = STATE.entries.findIndex(function(e){ return e.personId===person.id && e.date===entry.date; });
       if (idx>=0) STATE.entries[idx] = entry; else STATE.entries.push(entry);
       nav.editDate = null;
+      var prevFailedIds = {};
+      (existing.doorLines||[]).forEach(function(l){ if (l.status==="failed") prevFailedIds[l.lineId]=true; });
+      var newlyFailed = (ajtoDoorLinesMode && entry.doorLines) ? entry.doorLines.filter(function(l){ return l.status==="failed" && !prevFailedIds[l.lineId]; }) : [];
       saveEntries([entry], function(){
         var hasLinePhotoChanges = ajtoDoorLinesMode && doorLines.some(function(l){ return l._photos.pending.length || l._photos.removed.length; });
+        if (newlyFailed.length) notifyFailedInstallations(newlyFailed, person, entry.date);
         if ((photosEnabled && (pendingPhotos.length || removedPhotoIds.length)) || hasLinePhotoChanges) syncEntryPhotos();
         else finishSave();
       });
@@ -2210,7 +2247,7 @@ function wireDashboardTab(){
 
 function buildOverviewTab(people, trade, month){
   var dim = daysInMonth(month), today = todayStr();
-  var worked=0, vac=0, vacPlanned=0, vacUnplanned=0, sick=0, missing=0, anomaly=0, ajtoProblem=0;
+  var worked=0, vac=0, vacPlanned=0, vacUnplanned=0, sick=0, missing=0, anomaly=0, ajtoProblem=0, ajtoFailed=0;
   var jobStatuses = trade==="kerites" ? computeKeritesJobStatuses() : {};
   var openAddrCount = 0, problemAddrCount = 0;
   if (trade==="kerites"){
@@ -2270,6 +2307,7 @@ function buildOverviewTab(people, trade, month){
           else if (trade==="kerites" && e.addressStatus==="problem"){ mark='<span style="color:var(--flag)" title="Probléma merült fel, megakadt a szerelés">✕</span>'; worked++; }
           else if (trade==="kerites" && e.addressStatus==="continue"){ mark='<span style="color:var(--warn)" title="Folytatni kell a címet">↻</span>'; worked++; }
           else if (trade==="ajto" && ajtoEntryHasProblem(e)){ mark='<span style="color:var(--flag)" title="Probléma merült fel, vissza kell menni">✕</span>'; worked++; ajtoProblem++; }
+          else if (trade==="ajto" && ajtoEntryHasFailed(e)){ mark='<span style="color:var(--warn)" title="Meghiúsult beépítés">⊘</span>'; worked++; ajtoFailed++; }
           else if (isHourAnomaly(e) && !e.reviewedOk){ mark='<span style="color:var(--flag)" title="Magas teljesítmény — ellenőrizd!">⚠</span>'; worked++; anomaly++; }
           else { mark='<span style="color:var(--ok)" title="Rögzítve">●</span>'; worked++; }
           var mdInfo = multidayInfo[p.id] && multidayInfo[p.id][dateStr];
@@ -2295,9 +2333,10 @@ function buildOverviewTab(people, trade, month){
     (trade==="kerites" ? '<div class="stat-tile"><span class="n mono" style="color:var(--warn)">'+openAddrCount+'</span><span class="l">Címre vissza kell menni</span></div>' : '') +
     (trade==="kerites" ? '<div class="stat-tile"><span class="n mono" style="color:var(--flag)">'+problemAddrCount+'</span><span class="l">Problémás cím</span></div>' : '') +
     (trade==="ajto" ? '<div class="stat-tile"><span class="n mono" style="color:var(--flag)">'+ajtoProblem+'</span><span class="l">Problémás nap</span></div>' : '') +
+    (trade==="ajto" ? '<div class="stat-tile"><span class="n mono" style="color:var(--warn)">'+ajtoFailed+'</span><span class="l">Meghiúsult beépítés</span></div>' : '') +
     '</div>' +
     '<div class="matrix-scroll"><table class="matrix"><thead><tr>'+matrixHead+'</tr></thead><tbody>'+matrixRows+'</tbody></table></div>' +
-    '<p class="muted" style="margin-top:.6rem;font-size:.8rem">● rögzítve · ✈ szabadság · ✚ betegállomány · · hiányzik (hétköznap, nincs bejegyzés)'+(trade==="kerites"?' · ⚠ magas teljesítmény — ellenőrizendő · ↻ folytatni kell a címet · ✕ probléma, megakadt a szerelés · kék felső keret + "2/4" jelvény: ugyanaz a cím több napig tartott ebben a hónapban':'')+(trade==="ajto"?' · ✕ probléma merült fel, vissza kell menni · kék ✈ = tervezett szabadság, sárga ✈ = nem tervezett szabadság':'')+'</p>';
+    '<p class="muted" style="margin-top:.6rem;font-size:.8rem">● rögzítve · ✈ szabadság · ✚ betegállomány · · hiányzik (hétköznap, nincs bejegyzés)'+(trade==="kerites"?' · ⚠ magas teljesítmény — ellenőrizendő · ↻ folytatni kell a címet · ✕ probléma, megakadt a szerelés · kék felső keret + "2/4" jelvény: ugyanaz a cím több napig tartott ebben a hónapban':'')+(trade==="ajto"?' · ✕ probléma merült fel, vissza kell menni · ⊘ meghiúsult beépítés · kék ✈ = tervezett szabadság, sárga ✈ = nem tervezett szabadság':'')+'</p>';
 }
 function wireOverviewTab(people, trade, month){
   document.querySelectorAll(".matrix td.cell").forEach(function(td){
@@ -2429,7 +2468,7 @@ function buildPersonMonthTab(person, month, locked){
           '<option value="">—</option>' +
           AJTO_TEAM_COLORS.map(function(c){ return '<option value="'+escapeHtml(c)+'"'+(e&&e.teamColor===c?" selected":"")+'>'+escapeHtml(c)+'</option>'; }).join("") +
         '</select></td>' +
-        '<td class="mono" style="text-align:center">'+(e && ajtoEntryHasProblem(e) ? '<span style="color:var(--flag)" title="Van probléma ezen a napon — részletek a Napló mátrixban">✕</span>' : '')+'</td>'
+        '<td class="mono" style="text-align:center">'+(e && ajtoEntryHasProblem(e) ? '<span style="color:var(--flag)" title="Van probléma ezen a napon — részletek a Napló mátrixban">✕</span>' : '')+(e && ajtoEntryHasFailed(e) ? '<span style="color:var(--warn)" title="Meghiúsult beépítés ezen a napon — részletek a Napló mátrixban">⊘</span>' : '')+'</td>'
       : '<td><input type="time" data-pm-field="workStart" value="'+escapeHtml((e&&e.workStart)||"")+'"'+(locked?" disabled":"")+'></td>' +
         '<td><input type="time" data-pm-field="workEnd" value="'+escapeHtml((e&&e.workEnd)||"")+'"'+(locked?" disabled":"")+'></td>' +
         '<td><input type="number" min="0" step="0.1" data-pm-field="bontasFestesOra" value="'+((e&&e.bontasFestesOra)||0)+'"'+(locked?" disabled":"")+'></td>' +
@@ -3221,6 +3260,12 @@ function buildSettingsTab(){
     '<div class="switch-row"><div><strong>Napi megkeresett összeg elrejtése (ajtó)</strong>' +
     '<p class="muted" style="font-size:.78rem;margin-top:.3rem">Bekapcsolva: az ajtós szerelők a saját "Korábbi napjaid" listájukban nem látják az egyes napok Ft összegét (mentés után sem) — csak a dátumot és a "szerkeszt" gombot. A havi "Kereseted eddig" összesítő ettől függetlenül látszik továbbra is. Kikapcsolva: minden a megszokott módon látszik.</p></div>' +
     '<div class="toggle'+(STATE.ajtoHideDailyPay?" on":"")+'" id="a-ajtohidepay-toggle"></div></div>' +
+    '</div>' +
+    '<div class="card" style="max-width:520px;margin-top:1.2rem">' +
+    '<label>Meghiúsult beépítés — értesítési e-mail címek</label>' +
+    '<p class="muted" style="font-size:.8rem;margin:.2rem 0 .8rem">Ha egy szerelő egy ajtónál "Meghiúsult beépítés" státuszt ment el, automatikus e-mail megy ide. Több címet vesszővel válassz el.</p>' +
+    '<div class="field"><textarea id="a-failed-emails" placeholder="pl. nev1@nivo.hu, nev2@nivo.hu" rows="2">'+escapeHtml(STATE.failedInstallEmails||"")+'</textarea></div>' +
+    '<button class="ghost" id="a-save-failed-emails" style="margin-top:.6rem">E-mail címek mentése</button>' +
     '</div>';
 }
 function wireSettingsTab(){
@@ -3278,6 +3323,15 @@ function wireSettingsTab(){
         .catch(sbFail);
     };
   }
+  var saveFailedEmailsBtn = document.getElementById("a-save-failed-emails");
+  if (saveFailedEmailsBtn){
+    saveFailedEmailsBtn.onclick = function(){
+      STATE.failedInstallEmails = document.getElementById("a-failed-emails").value || "";
+      sb("settings?id=eq.1", { method:"PATCH", body:{failed_install_emails:STATE.failedInstallEmails}, prefer:"return=minimal" })
+        .then(function(){ toast("Értesítési e-mail címek mentve."); })
+        .catch(sbFail);
+    };
+  }
 }
 
 function openEntryModal(personId, date){
@@ -3318,7 +3372,7 @@ function openEntryModal(personId, date){
         '</div>'
       : '';
     var ajtoDoorLinesHtml = ajtoHasLines ? e.doorLines.map(function(l){
-      var statusPill = l.status==="done" ? '<span class="pill ok">✓ Kész</span>' : (l.status==="problem" ? '<span class="pill flag">✕ Probléma'+(l.problemType?' — '+escapeHtml(l.problemType):'')+'</span>' : '');
+      var statusPill = l.status==="done" ? '<span class="pill ok">✓ Kész</span>' : (l.status==="problem" ? '<span class="pill flag">✕ Probléma'+(l.problemType?' — '+escapeHtml(l.problemType):'')+'</span>' : (l.status==="failed" ? '<span class="pill" style="background:var(--warn-bg);color:var(--warn)">⊘ Meghiúsult beépítés</span>' : ''));
       var linePhotos = (e.photos||[]).filter(function(p){ return p.doorLineId===l.lineId; });
       var photosHtml = linePhotos.length ? '<div class="photo-grid" style="margin-top:.4rem">'+linePhotos.map(function(p){ return '<div class="photo-thumb"><img src="'+photoPublicUrl(p.path)+'"></div>'; }).join("")+'</div>' : '';
       var mcHtml = (l.metalCoverSizes && l.metalCoverSizes.length && l.metalCoverSizes.some(function(c){ return !c.excluded && c.a!=null && c.b!=null; }))
@@ -3327,7 +3381,7 @@ function openEntryModal(personId, date){
       return '<div class="recent-item" style="display:block;margin-bottom:.6rem">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem"><strong>'+escapeHtml(l.address || (l.doorType ? ajtoItemLabel(l.doorType) : "Ajtó"))+(l.qty>1?' × '+l.qty:'')+'</strong>'+statusPill+'</div>' +
         (l.orderRef ? '<p class="muted" style="margin:.2rem 0 0">Munka: '+escapeHtml(l.orderRef)+'</p>' : '') +
-        (l.status==="problem" && l.comment ? '<p style="margin-top:.3rem">"'+escapeHtml(l.comment)+'"</p>' : '') +
+        ((l.status==="problem"||l.status==="failed") && l.comment ? '<p style="margin-top:.3rem">"'+escapeHtml(l.comment)+'"</p>' : '') +
         mcHtml + photosHtml +
         '</div>';
     }).join("") : "";
